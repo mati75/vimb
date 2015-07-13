@@ -1,0 +1,11 @@
+*.[oad]
+*.lo
+*.tar.gz
+src/hints.js.h
+src/config.h
+src/vimb
+src/libvimb.so
+tests/*
+!tests/Makefile
+!tests/*.c
+!tests/manual/
