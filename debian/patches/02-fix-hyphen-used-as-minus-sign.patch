@@ -1,0 +1,81 @@
+Description: Fix lintian warning hyphen-used-as-minus-sign
+Author: Mateusz Łukasik <mati75@linuxmint.pl>
+
+--- a/doc/vimb.1
++++ b/doc/vimb.1
+@@ -37,7 +37,7 @@ if they are separated by "|".
+ .sp
+ Example:
+ .EX
+-vimb --cmd "set cookie-accept=origin|set header=Referer,DNT=1"
++vimb \-\-cmd "set cookie-accept=origin|set header=Referer,DNT=1"
+ .EE
+ .TP
+ .BI "\-c, \-\-config " "CONFIG-FILE"
+@@ -54,7 +54,7 @@ option.
+ .sp
+ Example:
+ .EX
+-sh -c "./vimb -s -d > ~/vimb.socket" &
++sh \-c "./vimb \-s \-d > ~/vimb.socket" &
+ echo ":o github.com<CR>" | socat - unix-connect:$(< ~/vimb.socket)
+ .EE
+ .TP
+@@ -834,16 +834,16 @@ Contains the pid of the running Vimb ins
+ .TP
+ .B VIMB_SOCKET
+ Holds the full path to the control socket, if Vimb is compiled with SOCKET
+-feature and started with `--socket' option.
++feature and started with `\-\-socket' option.
+ .TP
+ .B VIMB_XID
+ Holds the X-Window id of the Vimb window or of the embedding window if Vimb is
+-started with the -e option.
++started with the \-e option.
+ .PD
+ .PP
+ Example:
+ .EX
+-:sh ls -l $HOME
++:sh ls \-l $HOME
+ .EE
+ .RE
+ .TP
+@@ -852,7 +852,7 @@ Like :sh[ellcmd], but asyncron.
+ .sp
+ Example:
+ .EX
+-:sh! /bin/sh -c 'echo "`date` $VIMB_URI" >> myhistory.txt'
++:sh! /bin/sh \-c 'echo "`date` $VIMB_URI" >> myhistory.txt'
+ .EE
+ .TP
+ .BI ":s[ave] [" path "]"
+@@ -1275,7 +1275,7 @@ Cookie timeout in seconds.
+ .TP
+ .B cookie-expire-time (int)
+ Enforce expire-time on cookies.
+-The default value `-1' keep expire-time as defined by server side.
++The default value `\-1' keep expire-time as defined by server side.
+ The value `0' convert all cookies as session-only cookies
+ (`cookie-timeout' setting is used as for any other session-cookie).
+ Any other value enforce the expire-time (the expire-time value will be the
+@@ -1320,7 +1320,7 @@ apply to the URL to be downloaded, only
+ Example:
+ .PD 0
+ .IP ":set download-command=/bin/sh -c\
+- ""wget -c %s -O $VIMB_FILE --load-cookies $VIMB_COOKIES"""
++ ""wget \-c %s \-O $VIMB_FILE \-\-load-cookies $VIMB_COOKIES"""
+ .PD
+ .RE
+ .TP
+@@ -1337,8 +1337,8 @@ If this is disabled Vimb will handle the
+ .TP
+ .B editor-command (string)
+ Command with placeholder '%s' called if form filler is opened with $EDITOR to
+-spawn the editor-like `x-terminal-emulator -e vi %s'.
+-To use Gvim as the editor, it's necessary to call it with `-f' to run it
++spawn the editor-like `x-terminal-emulator \-e vi %s'.
++To use Gvim as the editor, it's necessary to call it with `\-f' to run it
+ in the foreground.
+ .TP
+ .B fullscreen (bool)

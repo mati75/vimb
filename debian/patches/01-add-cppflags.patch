@@ -1,0 +1,13 @@
+Description: Add CPPFLAGS to makefile
+Author: Mateusz Łukasik <mati75@linuxmint.pl>
+
+--- a/Makefile
++++ b/Makefile
+@@ -9,6 +9,7 @@ options:
+ 	@echo "LIBS    = $(LIBS)"
+ 	@echo "CFLAGS  = $(CFLAGS)"
+ 	@echo "LDFLAGS = $(LDFLAGS)"
++	@echo "CPPFLAGS = $(CPPFLAGS)"
+ 	@echo "CC      = $(CC)"
+ 
+ test: $(LIBTARGET)
