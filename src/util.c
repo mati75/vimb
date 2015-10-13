@@ -32,24 +32,39 @@ static gboolean match(const char *pattern, int patlen, const char *subject);
 static gboolean match_list(const char *pattern, int patlen, const char *subject);
 
 /**
- * Retrieves newly allocated string with vimb config directory.
- * Retruned string must be freed.
+ * Retrieves newly allocated string with vimb config directory with profilename. 
+ * If profilename is NULL, path to default directory is returned.
+ * Returned string must be freed.
  */
-char *util_get_config_dir(void)
+char *util_get_config_dir(const char *profilename)
 {
-    char *path = g_build_filename(g_get_user_config_dir(), PROJECT, NULL);
+    char *path = g_build_filename(g_get_user_config_dir(), PROJECT, G_DIR_SEPARATOR_S, profilename, NULL);
     util_create_dir_if_not_exists(path);
 
     return path;
 }
 
 /**
- * Retrieves the path to the cach dir.
+ * Retrieves the path to the cache dir with profilename
+ * If profilename is NULL, path to default directory is returned.
  * Returned string must be freed.
  */
-char *util_get_cache_dir(void)
+char *util_get_cache_dir(const char *profilename)
 {
-    char *path = g_build_filename(g_get_user_cache_dir(), PROJECT, NULL);
+    char *path = g_build_filename(g_get_user_cache_dir(), PROJECT, G_DIR_SEPARATOR_S, profilename, NULL);
+    util_create_dir_if_not_exists(path);
+
+    return path;
+}
+
+/**
+ * Retrieves the path to the socket dir with profilename
+ * If profilename is NULL, path to default directory is returned.
+ * Returned string must be freed.
+ */
+char *util_get_runtime_dir(const char *profilename)
+{
+    char *path = g_build_filename(g_get_user_runtime_dir(), PROJECT, G_DIR_SEPARATOR_S, profilename, NULL);
     util_create_dir_if_not_exists(path);
 
     return path;
@@ -756,6 +771,51 @@ gboolean util_fill_completion(GtkListStore *store, const char *input, GList *src
             }
         }
     }
+
+    return found;
+}
+
+gboolean util_filename_fill_completion(GtkListStore *store, const char *input)
+{
+    gboolean found = false;
+
+    const char *last_slash = strrchr(input, '/');
+    const char *input_basename = last_slash ? last_slash + 1 : input;
+    char *input_dirname = g_strndup(input, input_basename - input);
+    char *real_dirname = util_expand(
+        *input_dirname ? input_dirname : ".",
+        UTIL_EXP_TILDE|UTIL_EXP_DOLLAR|UTIL_EXP_SPECIAL
+    );
+
+    GError *error = NULL;
+    GDir *dir = g_dir_open(real_dirname, 0, &error);
+    if (error) {
+        /* Can't open directory, likely bad user input */
+        g_error_free(error);
+    } else {
+        const char *filename;
+        GtkTreeIter iter;
+        while ((filename = g_dir_read_name(dir))) {
+            if (g_str_has_prefix(filename, input_basename)) {
+                char *fullpath = g_build_filename(real_dirname, filename, NULL);
+                char *result;
+                if (g_file_test(fullpath, G_FILE_TEST_IS_DIR)) {
+                    result = g_strconcat(input_dirname, filename, "/", NULL);
+                } else {
+                    result = g_strconcat(input_dirname, filename, NULL);
+                }
+                g_free(fullpath);
+                gtk_list_store_append(store, &iter);
+                gtk_list_store_set(store, &iter, COMPLETION_STORE_FIRST, result, -1);
+                g_free(result);
+                found = true;
+            }
+        }
+        g_dir_close(dir);
+    }
+
+    g_free(input_dirname);
+    g_free(real_dirname);
 
     return found;
 }

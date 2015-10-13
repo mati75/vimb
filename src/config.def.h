@@ -36,6 +36,8 @@
 #define FEATURE_TITLE_PROGRESS
 /* should the history indicator [+-] be shown in status bar after url */
 #define FEATURE_HISTORY_INDICATOR
+/* should the profile name be shown before url in url bar */
+#define FEATURE_PROFILE_INDICATOR
 /* show wget style progressbar in status bar */
 #define FEATURE_WGET_PROGRESS_BAR
 #ifdef HAS_GTK3
@@ -85,7 +87,10 @@
 
 /* CSS style use on creating hints. This might also be averrules by css out of
  * $XDG_CONFIG_HOME/vimb/style.css file. */
-#define HINT_CSS "._hintLabel{\
+#define HINT_CSS "#_hintContainer{\
+position:static\
+}\
+._hintLabel{\
 -webkit-transform:translate(-4px,-4px);\
 position:absolute;\
 z-index:100000;\

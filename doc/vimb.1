@@ -44,6 +44,9 @@ vimb --cmd "set cookie-accept=origin|set header=Referer,DNT=1"
 Use custom configuration given as \fICONFIG-FILE\fP.
 This will also be applied on new spawned instances.
 .TP
+.BI "\-p, \-\-profile " "PROFILE-NAME"
+Create or open specified configuration profile. Configuration data for the profile is stored in a directory named \fIPROFILE-NAME\fP under default directory for configuration data.
+.TP
 .BI "\-e, \-\-embed " "WINID"
 .I WINID
 of an XEmbed-aware application, that Vimb will use as its parent.
@@ -202,11 +205,12 @@ Or if \fIN\fP is given to \fIN\fP% of the page.
 Scroll to the bottom of the current page.
 Or if \fIN\fP is given to \fIN\fP% of the page.
 .TP
-.BI [ N ]0
-Scroll \fIN\fP steps to the left of current page.
+.B 0, ^
+Scroll to the absolute left of the document.
+Unlike in Vim, 0 and ^ work exactly the same way.
 .TP
-.BI [ N ]$
-Scroll \fIN\fP steps to the right of current page.
+.B $
+Scroll to the absolute right of the document.
 .TP
 .BI [ N ]h
 Scroll \fIN\fP steps to the left of page.
@@ -861,6 +865,9 @@ If \fIpath\fP is given, download under this file name or path.
 \fIpath\fP is expanded and can therefore contain '~/', '${ENV}'
 and '~user' pattern.
 .TP
+.BI ":so[urce] [" file "]"
+Read ex commands from \fIfile\fP.
+.TP
 .B :q[uit]
 Close the browser.
 This will be refused if there are running downloads.
@@ -1370,6 +1377,10 @@ Header completely from request.
 If on, vimb automatically follows the last remaining hint on the page.
 If off hints are fired only if enter is pressed.
 .TP
+.B hint-number-same-length (bool)
+If on, all hint numbers will have the same length, so no hints will be
+ambiguous.
+.TP
 .B hint-timeout (int)
 Timeout before automatically following a non-unique numerical hint.
 To disable auto fire of hints, set this value to 0.
@@ -1564,11 +1575,20 @@ These file is used if the config variable `stylesheet' is enabled.
 .PD
 .RE
 .TP
+.I $XDG_CONFIG_HOME/vimb/PROFILE-NAME
+Directory for configuration data if executed with \fB-p \fIPROFILE-NAME\fR parameter. It has same structure as default directory for configuration data.
+.TP
 .I $XDG_CACHE_HOME/vimb/
 Default directory for cache data.
 .TP
+.I $XDG_CACHE_HOME/vimb/PROFILE-NAME
+Directory for cache data if executed with \fB-p \fIPROFILE-NAME\fR parameter.
+.TP
 .I $XDG_RUNTIME_DIR/vimb/socket/
 Directory where the control sockets are placed.
+.TP
+.I $XDG_RUNTIME_DIR/vimb/PROFILE-NAME/socket/
+Directory where the control sockets are placed if executed with \fB-p \fIPROFILE-NAME\fR parameter.
 .PP
 There are also some sample scripts installed together with Vimb under
 PREFIX/share/vimb/examples.
