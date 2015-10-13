@@ -176,6 +176,7 @@ static void resume_editor(GPid pid, int status, EditorData *data)
         g_free(text);
     }
     dom_editable_element_set_disable(data->element, false);
+    dom_give_focus(data->element);
 
     g_unlink(data->file);
     g_free(data->file);

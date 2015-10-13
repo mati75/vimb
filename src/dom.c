@@ -30,33 +30,14 @@ static gboolean editable_focus_cb(Element *element, Event *event);
 static Element *get_active_element(Document *doc);
 
 
-void dom_check_auto_insert(Document *doc)
+void dom_install_focus_blur_callbacks(Document *doc)
 {
-    Element *active;
-    HtmlElement *element;
+    HtmlElement *element = webkit_dom_document_get_body(doc);
 
-    /* First check for current active element that becomes focused before we
-     * could add the evnet observers. */
-    active = webkit_dom_html_document_get_active_element(WEBKIT_DOM_HTML_DOCUMENT(doc));
-    if (active) {
-        if (!vb.config.strict_focus) {
-            auto_insert(active);
-        } else if (vb.mode->id != 'i') {
-            /* If strict-focus is enabled and the editable element becomes
-             * focus, we explicitely remove the focus. But only if vim isn't
-             * in input mode at the time. This prevents from leaving input
-             * mode that was started by user interaction like click to
-             * editable element, or the gi normal mode command. */
-            webkit_dom_element_blur(active);
-        }
-    }
-
-    element = webkit_dom_document_get_body(doc);
     if (!element) {
         element = WEBKIT_DOM_HTML_ELEMENT(webkit_dom_document_get_document_element(doc));
     }
     if (element) {
-        /* add event listener to track focus and blur events on the document */
         webkit_dom_event_target_add_event_listener(
             WEBKIT_DOM_EVENT_TARGET(element), "blur", G_CALLBACK(editable_blur_cb), true, NULL
         );
@@ -64,6 +45,25 @@ void dom_check_auto_insert(Document *doc)
             WEBKIT_DOM_EVENT_TARGET(element), "focus", G_CALLBACK(editable_focus_cb), true, NULL
         );
     }
+}
+
+void dom_check_auto_insert(Document *doc)
+{
+    Element *active = webkit_dom_html_document_get_active_element(WEBKIT_DOM_HTML_DOCUMENT(doc));
+
+    if (active) {
+        if (!vb.config.strict_focus) {
+            auto_insert(active);
+        } else if (vb.mode->id != 'i') {
+            /* If strict-focus is enabled and the editable element becomes
+             * focus, we explicitely remove the focus. But only if vimb isn't
+             * in input mode at the time. This prevents from leaving input
+             * mode that was started by user interaction like click to
+             * editable element, or the 'gi' normal mode command. */
+            webkit_dom_element_blur(active);
+        }
+    }
+    dom_install_focus_blur_callbacks(doc);
 }
 
 /**
@@ -75,6 +75,14 @@ void dom_clear_focus(WebKitWebView *view)
     if (active) {
         webkit_dom_element_blur(active);
     }
+}
+
+/**
+ * Give the focus to element.
+ */
+void dom_give_focus(Element *element)
+{
+    webkit_dom_element_focus(element);
 }
 
 /**
@@ -163,14 +171,15 @@ gboolean dom_focus_input(Document *doc)
 gboolean dom_is_editable(Element *element)
 {
     gboolean result = false;
-    char *tagname, *type;
+    char *tagname, *type, *editable;
 
     if (!element) {
         return result;
     }
 
-    tagname = webkit_dom_element_get_tag_name(element);
-    type    = webkit_dom_element_get_attribute(element, "type");
+    tagname  = webkit_dom_element_get_tag_name(element);
+    type     = webkit_dom_element_get_attribute(element, "type");
+    editable = webkit_dom_element_get_attribute(element, "contenteditable"); 
     /* element is editable if it's a text area or input with no type, text or
      * pasword */
     if (!g_ascii_strcasecmp(tagname, "textarea")) {
@@ -193,11 +202,14 @@ gboolean dom_is_editable(Element *element)
             || !g_ascii_strcasecmp(type, "week"))
     ) {
         result = true;
+    } else if (!g_ascii_strcasecmp(editable, "true")) {
+        result = true;
     } else {
         result = false;
     }
     g_free(tagname);
     g_free(type);
+    g_free(editable);
 
     return result;
 }
@@ -273,15 +285,18 @@ static gboolean auto_insert(Element *element)
 
 static gboolean editable_blur_cb(Element *element, Event *event)
 {
-    if (vb.mode->id == 'i') {
+    if (vb.state.window_has_focus && vb.mode->id == 'i') {
         vb_enter('n');
     }
+
     return false;
 }
 
 static gboolean editable_focus_cb(Element *element, Event *event)
 {
-    auto_insert((Element*)webkit_dom_event_get_target(event));
+    if (vb.state.done_loading_page || !vb.config.strict_focus) {
+        auto_insert((Element*)webkit_dom_event_get_target(event));
+    }
 
     return false;
 }

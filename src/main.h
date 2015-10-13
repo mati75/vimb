@@ -43,7 +43,7 @@
 
 #define FLOCK(fd, cmd) { \
     struct flock lock = {.l_type=cmd,.l_start=0,.l_whence=SEEK_SET,.l_len=0}; \
-    fcntl(fd, F_SETLK, lock); \
+    fcntl(fd, F_SETLKW, &lock); \
 }
 
 #ifdef DEBUG
@@ -293,7 +293,7 @@ typedef struct {
 
 /* state */
 typedef struct {
-    char            *uri;
+    char            *uri;                   /* holds current  uri or the new to open uri */
     guint           progress;
     StatusType      status_type;
     MessageType     input_type;
@@ -315,6 +315,8 @@ typedef struct {
     char            *fifo_path;             /* holds the path to the control fifo */
     char            *socket_path;           /* holds the path to the control socket */
     char            *pid_str;               /* holds the pid as string */
+    gboolean        done_loading_page;
+    gboolean        window_has_focus;
 } State;
 
 typedef struct {
@@ -334,6 +336,7 @@ typedef struct {
     char         *nextpattern;     /* regex patter nfor prev link matching */
     char         *prevpattern;     /* regex patter nfor next link matching */
     char         *file;            /* path to the custome config file */
+    char         *profile;         /* profile name */
     GSList       *cmdargs;         /* list of commands given by --cmd option */
     char         *cafile;          /* path to the ca file */
     GTlsDatabase *tls_db;          /* tls database */

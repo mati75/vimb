@@ -30,8 +30,9 @@ enum {
 
 typedef void *(*Util_Content_Func)(const char*, const char*);
 
-char* util_get_config_dir(void);
-char* util_get_cache_dir(void);
+char* util_get_config_dir(const char* profilename);
+char* util_get_cache_dir(const char* profilename);
+char* util_get_runtime_dir(const char* profilename);
 const char* util_get_home_dir(void);
 void util_create_dir_if_not_exists(const char* dirpath);
 void util_create_file_if_not_exists(const char* filename);
@@ -50,5 +51,6 @@ gboolean util_parse_expansion(const char **input, GString *str, int flags,
     const char *quoteable);
 gboolean util_wildmatch(const char *pattern, const char *subject);
 gboolean util_fill_completion(GtkListStore *store, const char *input, GList *src);
+gboolean util_filename_fill_completion(GtkListStore *store, const char *input);
 
 #endif /* end of include guard: _UTIL_H */

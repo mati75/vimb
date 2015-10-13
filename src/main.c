@@ -66,6 +66,8 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec);
 static void webview_request_starting_cb(WebKitWebView *view,
     WebKitWebFrame *frame, WebKitWebResource *res, WebKitNetworkRequest *req,
     WebKitNetworkResponse *resp, gpointer data);
+static gboolean focus_out_event_cb(GtkWidget *widget, GdkEvent *event, gpointer user_data);
+static gboolean focus_in_event_cb(GtkWidget *widget, GdkEvent *event, gpointer user_data);
 static void destroy_window_cb(GtkWidget *widget);
 static void scroll_cb(GtkAdjustment *adjustment);
 static gboolean input_focus_in_cb(GtkWidget *widget, GdkEventFocus *event,
@@ -108,9 +110,10 @@ static void session_request_queued_cb(SoupSession *session, SoupMessage *msg, gp
 static void wget_bar(int len, int progress, char *string);
 #endif
 static void update_title(void);
+static void set_uri(const char *uri);
+static void set_title(const char *title);
 static void init_core(void);
 static void marks_clear(void);
-static void read_config(void);
 static void setup_signals();
 static void init_files(void);
 static void session_init(void);
@@ -357,6 +360,7 @@ gboolean vb_load_uri(const Arg *arg)
             3                       /* basename + uri + ending NULL */
             + (vb.embed ? 2 : 0)
             + (vb.config.file ? 2 : 0)
+            + (vb.config.profile ? 2 : 0)
             + (vb.config.kioskmode ? 1 : 0)
 #ifdef FEATURE_SOCKET
             + (vb.config.socket ? 1 : 0)
@@ -376,6 +380,10 @@ gboolean vb_load_uri(const Arg *arg)
         if (vb.config.file) {
             cmd[i++] = "-c";
             cmd[i++] = vb.config.file;
+        }
+        if (vb.config.profile) {
+            cmd[i++] = "-p";
+            cmd[i++] = vb.config.profile;
         }
         for (GSList *l = vb.config.cmdargs; l; l = l->next) {
             cmd[i++] = "-C";
@@ -402,8 +410,7 @@ gboolean vb_load_uri(const Arg *arg)
         webkit_web_view_load_uri(vb.gui.webview, uri);
         /* show the url to be opened in the window title until we receive the
          * page title */
-        OVERWRITE_STRING(vb.state.title, uri);
-        update_title();
+        set_title(uri);
     }
     g_free(uri);
 
@@ -540,24 +547,34 @@ void vb_update_input_style(void)
 void vb_update_urlbar(const char *uri)
 {
     Gui *gui = &vb.gui;
+#if !defined(FEATURE_HISTORY_INDICATOR) && !defined(FEATURE_PROFILE_INDICATOR)
+    /* if only the uri is shown - write it like it is on the label */
+    gtk_label_set_text(GTK_LABEL(gui->statusbar.left), uri);
+#else
+    GString *str = g_string_new("");
+#ifdef FEATURE_PROFILE_INDICATOR
+    if (vb.config.profile) {
+        g_string_append_printf(str, "[%s] ", vb.config.profile);
+    }
+#endif /* FEATURE_PROFILE_INDICATOR */
+
+    g_string_append_printf(str, "%s", uri);
+
 #ifdef FEATURE_HISTORY_INDICATOR
     gboolean back, fwd;
-    char *str;
 
     back = webkit_web_view_can_go_back(gui->webview);
     fwd  = webkit_web_view_can_go_forward(gui->webview);
 
     /* show history indicator only if there is something to show */
     if (back || fwd) {
-        str = g_strdup_printf("%s [%s]", uri, back ? (fwd ? "-+" : "-") : "+");
-        gtk_label_set_text(GTK_LABEL(gui->statusbar.left), str);
-        g_free(str);
-    } else {
-        gtk_label_set_text(GTK_LABEL(gui->statusbar.left), uri);
+        g_string_append_printf(str, " [%s]", back ? (fwd ? "-+" : "-") : "+");
     }
-#else
-    gtk_label_set_text(GTK_LABEL(gui->statusbar.left), uri);
-#endif
+#endif /* FEATURE_HISTORY_INDICATOR */
+
+    gtk_label_set_text(GTK_LABEL(gui->statusbar.left), str->str);
+    g_string_free(str, true);
+#endif /* !defined(FEATURE_HISTORY_INDICATOR) && !defined(FEATURE_PROFILE_INDICATOR) */
 }
 
 void vb_update_mode_label(const char *label)
@@ -669,11 +686,7 @@ static void context_menu_activate_cb(GtkMenuItem *item, gpointer data)
 
 static void uri_change_cb(WebKitWebView *view, GParamSpec param_spec)
 {
-    g_free(vb.state.uri);
-    g_object_get(view, "uri", &vb.state.uri, NULL);
-    vb_update_urlbar(vb.state.uri);
-
-    g_setenv("VIMB_URI", vb.state.uri, true);
+    set_uri(webkit_web_view_get_uri(view));
 }
 
 static void webview_progress_cb(WebKitWebView *view, GParamSpec *pspec)
@@ -748,12 +761,14 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
             }
 
             vb_update_statusbar();
-            vb_update_urlbar(uri);
+            set_uri(uri);
+            set_title(uri);
             /* save the current URI in register % */
             vb_register_add('%', uri);
 
             /* clear possible set marks */
             marks_clear();
+
             break;
 
         case WEBKIT_LOAD_FIRST_VISUALLY_NON_EMPTY_LAYOUT:
@@ -765,6 +780,11 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
             if (vb.mode->id == 'i') {
                 vb_enter('n');
             }
+
+            WebKitWebFrame *frame = webkit_web_view_get_main_frame(view);
+            dom_install_focus_blur_callbacks(webkit_web_frame_get_dom_document(frame));
+            vb.state.done_loading_page = false;
+
             break;
 
         case WEBKIT_LOAD_FINISHED:
@@ -783,10 +803,25 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
             break;
 
         case WEBKIT_LOAD_FAILED:
+            {
+                /* In case the requested uri could not be loaded the Current
+                 * uri of the Webview would still be the PRevious one. So We
+                 * use the provisional uri here. */
+                WebKitWebFrame *frame     = webkit_web_view_get_main_frame(view);
+                WebKitWebDataSource *src  = webkit_web_frame_get_provisional_data_source(frame);
+                if (src) {
+                    WebKitNetworkRequest *req = webkit_web_data_source_get_initial_request(src);
+                    uri = webkit_network_request_get_uri(req);
+                } else {
+                    uri = webkit_web_view_get_uri(view);
+                }
+                set_uri(uri);
+                /* Show the failed uri as title. */
+                set_title(uri);
 #ifdef FEATURE_AUTOCMD
-            uri = webkit_web_view_get_uri(view);
-            autocmd_run(AU_LOAD_FAILED, uri, NULL);
+                autocmd_run(AU_LOAD_FAILED, uri, NULL);
 #endif
+            }
             break;
     }
 }
@@ -825,6 +860,20 @@ static void webview_request_starting_cb(WebKitWebView *view,
             soup_message_headers_replace(msg->request_headers, name, value);
         }
     }
+}
+
+static gboolean focus_out_event_cb(GtkWidget *widget, GdkEvent *event,
+    gpointer user_data)
+{
+    vb.state.window_has_focus = false;
+    return false;
+}
+
+static gboolean focus_in_event_cb(GtkWidget *widget, GdkEvent *event,
+    gpointer user_data)
+{
+    vb.state.window_has_focus = true;
+    return false;
 }
 
 static void destroy_window_cb(GtkWidget *widget)
@@ -1040,7 +1089,8 @@ static void init_core(void)
     /* make sure the main window and all its contents are visible */
     gtk_widget_show_all(gui->window);
 
-    read_config();
+    /* read the config file */
+    ex_run_file(vb.files[FILES_CONFIG]);
 
     /* initially apply input style */
     vb_update_input_style();
@@ -1085,28 +1135,6 @@ static void marks_clear(void)
     }
 }
 
-static void read_config(void)
-{
-    char *line, **lines;
-
-    /* read config from config files */
-    lines = util_get_lines(vb.files[FILES_CONFIG]);
-
-    if (lines) {
-        int length = g_strv_length(lines) - 1;
-        for (int i = 0; i < length; i++) {
-            line = lines[i];
-            if (*line == '#') {
-                continue;
-            }
-            if (ex_run_string(line, false) & VB_CMD_ERROR ) {
-                g_warning("Invalid user config: '%s'", line);
-            }
-        }
-    }
-    g_strfreev(lines);
-}
-
 static void setup_signals()
 {
     /* Set up callbacks so that if either the main window or the browser
@@ -1135,7 +1163,8 @@ static void setup_signals()
         "signal::onload-event", G_CALLBACK(onload_event_cb), NULL,
         NULL
     );
-
+    g_signal_connect(vb.gui.window, "focus-in-event", G_CALLBACK(focus_in_event_cb), NULL);
+    g_signal_connect(vb.gui.window, "focus-out-event", G_CALLBACK(focus_out_event_cb), NULL);
 #ifdef FEATURE_ARH
     g_signal_connect(vb.session, "request-queued", G_CALLBACK(session_request_queued_cb), NULL);
 #endif
@@ -1174,7 +1203,7 @@ static void setup_signals()
 
 static void init_files(void)
 {
-    char *path = util_get_config_dir();
+    char *path = util_get_config_dir(vb.config.profile);
 
     if (vb.config.file) {
         char *rp = realpath(vb.config.file, NULL);
@@ -1241,7 +1270,7 @@ static void session_init(void)
 #endif
 #ifdef FEATURE_SOUP_CACHE
     /* setup the soup cache but without setting the cache size - this is done in setting.c */
-    char *cache_dir      = util_get_cache_dir();
+    char *cache_dir      = util_get_cache_dir(vb.config.profile);
     vb.config.soup_cache = soup_cache_new(cache_dir, SOUP_CACHE_SINGLE_USER);
     soup_session_add_feature(vb.session, SOUP_SESSION_FEATURE(vb.config.soup_cache));
     soup_cache_load(vb.config.soup_cache);
@@ -1415,6 +1444,7 @@ static void onload_event_cb(WebKitWebView *view, WebKitWebFrame *frame,
 {
     Document *doc = webkit_web_frame_get_dom_document(frame);
     dom_check_auto_insert(doc);
+    vb.state.done_loading_page = true;
 }
 
 static void hover_link_cb(WebKitWebView *webview, const char *title, const char *link)
@@ -1428,16 +1458,18 @@ static void hover_link_cb(WebKitWebView *webview, const char *title, const char 
         message = g_strconcat("Link: ", link, NULL);
         gtk_label_set_text(GTK_LABEL(vb.gui.statusbar.left), message);
         g_free(message);
+    } else if (vb.state.uri) {
+        /* Use previous url in case of hover out of a link. */
+        vb_update_urlbar(vb.state.uri);
     } else {
-        vb_update_urlbar(webkit_web_view_get_uri(webview));
+        /* If there is no previous uri use the current uri from webview. */
+        set_uri(webkit_web_view_get_uri(webview));
     }
 }
 
 static void title_changed_cb(WebKitWebView *webview, WebKitWebFrame *frame, const char *title)
 {
-    OVERWRITE_STRING(vb.state.title, title);
-    update_title();
-    g_setenv("VIMB_TITLE", title ? title : "", true);
+    set_title(title);
 }
 
 static void update_title(void)
@@ -1458,6 +1490,20 @@ static void update_title(void)
     if (vb.state.title) {
         gtk_window_set_title(GTK_WINDOW(vb.gui.window), vb.state.title);
     }
+}
+
+static void set_uri(const char *uri)
+{
+    OVERWRITE_STRING(vb.state.uri, uri);
+    g_setenv("VIMB_URI", uri, true);
+    vb_update_urlbar(uri);
+}
+
+static void set_title(const char *title)
+{
+    OVERWRITE_STRING(vb.state.title, title);
+    update_title();
+    g_setenv("VIMB_TITLE", title ? title : "", true);
 }
 
 static gboolean mimetype_decision_cb(WebKitWebView *webview,
@@ -1755,6 +1801,7 @@ int main(int argc, char *argv[])
     static GOptionEntry opts[] = {
         {"cmd", 'C', 0, G_OPTION_ARG_CALLBACK, autocmdOptionArgFunc, "Ex command run before first page is loaded", NULL},
         {"config", 'c', 0, G_OPTION_ARG_FILENAME, &vb.config.file, "Custom configuration file", NULL},
+        {"profile", 'p', 0, G_OPTION_ARG_STRING, &vb.config.profile, "Profile name", NULL},
         {"embed", 'e', 0, G_OPTION_ARG_STRING, &winid, "Reparents to window specified by xid", NULL},
 #ifdef FEATURE_SOCKET
         {"dump", 'd', 0, G_OPTION_ARG_NONE, &dump, "Dump the socket path to stdout", NULL},
