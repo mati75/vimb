@@ -1,3 +1,9 @@
+vimb (2.10+git20151012-1) UNRELEASED; urgency=medium
+
+  * Merged lastest upstream git version.
+
+ -- Mateusz Łukasik <mati75@linuxmint.pl>  Tue, 13 Oct 2015 21:05:01 +0200
+
 vimb (2.10-1) unstable; urgency=low
 
   * Initial release.
