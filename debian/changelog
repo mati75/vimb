@@ -1,8 +1,8 @@
-vimb (2.10+git20151012-1) UNRELEASED; urgency=medium
+vimb (2.11-1) unstable; urgency=medium
 
-  * Merged lastest upstream git version.
+  * New upstream release.
 
- -- Mateusz Łukasik <mati75@linuxmint.pl>  Tue, 13 Oct 2015 21:05:01 +0200
+ -- Mateusz Łukasik <mati75@debian.org>  Thu, 17 Dec 2015 22:43:15 +0100
 
 vimb (2.10-1) unstable; urgency=low
 
