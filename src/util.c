@@ -18,6 +18,8 @@
  */
 
 #include "config.h"
+#include <fcntl.h>
+#include <sys/file.h>
 #include <stdio.h>
 #include <pwd.h>
 #include <ctype.h>
@@ -222,13 +224,13 @@ gboolean util_file_append(const char *file, const char *format, ...)
     FILE *f;
 
     if ((f = fopen(file, "a+"))) {
-        FLOCK(fileno(f), F_WRLCK);
+        flock(fileno(f), LOCK_EX);
 
         va_start(args, format);
         vfprintf(f, format, args);
         va_end(args);
 
-        FLOCK(fileno(f), F_UNLCK);
+        flock(fileno(f), LOCK_UN);
         fclose(f);
 
         return true;
@@ -251,7 +253,7 @@ gboolean util_file_prepend(const char *file, const char *format, ...)
 
     content = util_get_file_contents(file, NULL);
     if ((f = fopen(file, "w"))) {
-        FLOCK(fileno(f), F_WRLCK);
+        flock(fileno(f), LOCK_EX);
 
         va_start(args, format);
         /* write new content to the file */
@@ -261,7 +263,7 @@ gboolean util_file_prepend(const char *file, const char *format, ...)
         /* append previous file content */
         fputs(content, f);
 
-        FLOCK(fileno(f), F_UNLCK);
+        flock(fileno(f), LOCK_UN);
         fclose(f);
 
         res = true;
@@ -269,6 +271,40 @@ gboolean util_file_prepend(const char *file, const char *format, ...)
     g_free(content);
 
     return res;
+}
+
+/**
+ * Retrieves the first line from file and delete it from file.
+ *
+ * @file:       file to read from
+ * @item_count: will be filled with the number of remaining lines in file if it
+ *              is not NULL.
+ *
+ * Returned string must be freed with g_free.
+ */
+char *util_file_pop_line(const char *file, int *item_count)
+{
+    char **lines = util_get_lines(file);
+    char *line = NULL;
+    int count = 0;
+
+    if (lines) {
+        int len = g_strv_length(lines);
+        if (len) {
+            line = g_strdup(lines[0]);
+            /* minus one for last empty item and one for popped item */
+            count = len - 2;
+            char *new = g_strjoinv("\n", lines + 1);
+            g_file_set_contents(file, new, -1, NULL);
+            g_free(new);
+        }
+        g_strfreev(lines);
+    }
+
+    if (item_count) {
+        *item_count = count;
+    }
+    return line;
 }
 
 char *util_strcasestr(const char *haystack, const char *needle)

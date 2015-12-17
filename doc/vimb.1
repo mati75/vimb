@@ -707,7 +707,7 @@ No white space can be used in this list.
 Events:
 .TP
 .B LoadProvisional
-Fired if a new page is going to opened.
+Fired if a new page is going to be opened.
 No data has been received yet, the load may still fail for transport issues.
 .TP
 .B LoadCommited
@@ -1022,6 +1022,10 @@ Automatically shrink standalone images to fit.
 .TP
 .B caret (bool)
 Whether to enable accessibility enhanced keyboard navigation.
+.TP
+.B closed-max-items (int)
+Maximum number of stored last closed browser windows. If closed-max-items is
+set to 0, closed browser windows will not be stored.
 .TP
 .B cursivfont (string)
 The font family used as the default for content using cursive font.
@@ -1537,7 +1541,7 @@ Configuration file to set WebKit setting, some GUI styles and keybindings.
 Cookie store file.
 .TP
 .I closed
-Holds the URI of the last closed browser window.
+Holds the URI of last closed browser windows.
 .TP
 .I history
 This file holds the history of unique opened URIs.

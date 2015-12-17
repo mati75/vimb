@@ -41,10 +41,6 @@
 
 #define LENGTH(x) (sizeof x / sizeof x[0])
 
-#define FLOCK(fd, cmd) { \
-    struct flock lock = {.l_type=cmd,.l_start=0,.l_whence=SEEK_SET,.l_len=0}; \
-    fcntl(fd, F_SETLKW, &lock); \
-}
 
 #ifdef DEBUG
 #define PRINT_DEBUG(...) { \
@@ -327,6 +323,7 @@ typedef struct {
     int          scrollstep;
     char         *download_dir;
     guint        history_max;
+    guint        closed_max;
     guint        timeoutlen;       /* timeout for ambiguous mappings */
     gboolean     strict_focus;
     GHashTable   *headers;         /* holds user defined header appended to requests */
@@ -367,7 +364,7 @@ typedef struct {
     VbColor              status_bg[VB_STATUS_LAST];
     VbColor              status_fg[VB_STATUS_LAST];
     PangoFontDescription *status_font[VB_STATUS_LAST];
-} Style;
+} VbStyle;
 
 typedef struct {
     Gui             gui;
@@ -376,7 +373,7 @@ typedef struct {
     char            *files[FILES_LAST];
     Mode            *mode;
     Config          config;
-    Style           style;
+    VbStyle           style;
     SoupSession     *session;
 #ifdef HAS_GTK3
     Window          embed;
