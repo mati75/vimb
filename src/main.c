@@ -598,8 +598,20 @@ void vb_quit(gboolean force)
     webkit_web_view_stop_loading(vb.gui.webview);
 
     /* write last URL into file for recreation */
-    if (vb.state.uri) {
-        g_file_set_contents(vb.files[FILES_CLOSED], vb.state.uri, -1, NULL);
+    if (vb.state.uri && vb.config.closed_max) {
+        char **lines = util_get_lines(vb.files[FILES_CLOSED]);
+        GString *new = g_string_new(vb.state.uri);
+        g_string_append(new, "\n");
+        if (lines) {
+            int len = g_strv_length(lines);
+            int i;
+            for (i = 0; i < len - 1 && i < vb.config.closed_max - 1; i++) {
+                g_string_append_printf(new, "%s\n", lines[i]);
+            }
+            g_strfreev(lines);
+        }
+        g_file_set_contents(vb.files[FILES_CLOSED], new->str, -1, NULL);
+        g_string_free(new, true);
     }
 
     gtk_main_quit();
@@ -713,12 +725,12 @@ static void webview_download_progress_cb(WebKitWebView *view, GParamSpec *pspec)
 static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
 {
     const char *uri;
+    WebKitWebFrame *frame = webkit_web_view_get_main_frame(view);
 
     switch (webkit_web_view_get_load_status(view)) {
         case WEBKIT_LOAD_PROVISIONAL:
 #ifdef FEATURE_AUTOCMD
             {
-                WebKitWebFrame *frame     = webkit_web_view_get_main_frame(view);
                 WebKitWebDataSource *src  = webkit_web_frame_get_provisional_data_source(frame);
                 WebKitNetworkRequest *req = webkit_web_data_source_get_initial_request(src);
                 uri = webkit_network_request_get_uri(req);
@@ -737,7 +749,6 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
             autocmd_run(AU_LOAD_COMMITED, uri, NULL);
 #endif
             {
-                WebKitWebFrame *frame = webkit_web_view_get_main_frame(view);
                 JSContextRef ctx;
                 /* set the status */
                 if (g_str_has_prefix(uri, "https://")) {
@@ -781,13 +792,13 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
                 vb_enter('n');
             }
 
-            WebKitWebFrame *frame = webkit_web_view_get_main_frame(view);
             dom_install_focus_blur_callbacks(webkit_web_frame_get_dom_document(frame));
             vb.state.done_loading_page = false;
 
             break;
 
         case WEBKIT_LOAD_FINISHED:
+            dom_install_focus_blur_callbacks(webkit_web_frame_get_dom_document(frame));
             uri = webkit_web_view_get_uri(view);
 #ifdef FEATURE_AUTOCMD
             autocmd_run(AU_LOAD_FINISHED, uri, NULL);
@@ -807,7 +818,6 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
                 /* In case the requested uri could not be loaded the Current
                  * uri of the Webview would still be the PRevious one. So We
                  * use the provisional uri here. */
-                WebKitWebFrame *frame     = webkit_web_view_get_main_frame(view);
                 WebKitWebDataSource *src  = webkit_web_frame_get_provisional_data_source(frame);
                 if (src) {
                     WebKitNetworkRequest *req = webkit_web_data_source_get_initial_request(src);
