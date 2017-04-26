@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,10 +37,10 @@ gboolean command_search(const Arg *arg)
     gboolean forward;
 
     if (arg->i == 0) {
-#ifdef FEATURE_SEARCH_HIGHLIGHT
-        webkit_web_view_unmark_text_matches(vb.gui.webview);
         vb.state.search_matches = 0;
         vb_update_statusbar();
+#ifdef FEATURE_SEARCH_HIGHLIGHT
+        webkit_web_view_unmark_text_matches(vb.gui.webview);
 #endif
         newsearch = true;
         return true;
@@ -64,15 +64,16 @@ gboolean command_search(const Arg *arg)
     if (query) {
         unsigned int count = abs(arg->i);
         if (newsearch) {
-#ifdef FEATURE_SEARCH_HIGHLIGHT
+            vb.state.search_matches = webkit_web_view_mark_text_matches(vb.gui.webview, query, false, 0);
+            vb_update_statusbar();
+            newsearch = false;
+
             /* highlight matches if the search is started new or continued
              * after switch to normal mode which calls this function with
              * COMMAND_SEARCH_OFF */
-            vb.state.search_matches = webkit_web_view_mark_text_matches(vb.gui.webview, query, false, 0);
+#ifdef FEATURE_SEARCH_HIGHLIGHT
             webkit_web_view_set_highlight_text_matches(vb.gui.webview, true);
-            vb_update_statusbar();
 #endif
-            newsearch = false;
             /* skip first search because this is done during typing in ex
              * mode, else the search will mark the next match as active */
             if (count) {

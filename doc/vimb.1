@@ -371,6 +371,9 @@ direction.
 .BI [ N ]N
 Search for \fIN\fPnth previous search result depending on current search
 direction.
+.TP
+.B <CR>
+Perform a click on element containing the current highlighted search result.
 .SS Zooming
 .TP
 .BI [ N ]zi
@@ -842,7 +845,7 @@ feature and started with `--socket' option.
 .TP
 .B VIMB_XID
 Holds the X-Window id of the Vimb window or of the embedding window if Vimb is
-started with the -e option.
+compiled with XEMBED and started with the -e option.
 .PD
 .PP
 Example:
@@ -979,7 +982,7 @@ will complete only URIs that contain the words foo and bar.
 .B bookmarks
 The bookmark completion is similar to the history completion, but does match
 only the tags of the bookmarks.
-The bookmark completion ist started by `:open \fB!\fP`
+The bookmark completion is started by `:open \fB!\fP`
 or `:tabopen \fB!\fP` and does a prefix search for all given words in
 the bookmark tags.
 .sp
@@ -1291,6 +1294,9 @@ The value `0' convert all cookies as session-only cookies
 (`cookie-timeout' setting is used as for any other session-cookie).
 Any other value enforce the expire-time (the expire-time value will be the
 lower between server-side request and time defined with `cookie-expire-time').
+.TP
+.B default-zoom (int)
+Initial Full-Content Zoom in percent. Default is 100.
 .TP
 .B download-command (string)
 A command with placeholder '%s' that will be invoked to download a URI.

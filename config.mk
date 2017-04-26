@@ -1,11 +1,12 @@
 #----------------user/install options----------------
-VERSION = 2.11
+VERSION = 2.12
 
 PROJECT     = vimb
 PREFIX     ?= /usr/local
 BINDIR     ?= $(PREFIX)/bin
-MANDIR     ?= $(PREFIX)/share/man
-EXAMPLEDIR ?= $(PREFIX)/share/$(PROJECT)/examples
+DATADIR    ?= $(PREFIX)/share
+MANDIR     ?= $(DATADIR)/man
+EXAMPLEDIR ?= $(DATADIR)/$(PROJECT)/examples
 
 #----------------compile options---------------------
 

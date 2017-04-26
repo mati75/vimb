@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -489,12 +489,12 @@ gboolean util_parse_expansion(const char **input, GString *str, int flags,
             if (!*(*input + 1) || VB_IS_SPACE(*(*input + 1))) {
                 (*input)++;
             }
-        } else {
+        } else if (**input != '-') {
             /* look ahead to / space or end of string to get a possible
              * username for ~user pattern */
             name = g_string_new("");
             /* current char is ~ that is skipped to get the user name */
-            while (VB_IS_IDENT(**input)) {
+            while (VB_IS_USER_IDENT(**input)) {
                 g_string_append_c(name, **input);
                 (*input)++;
             }

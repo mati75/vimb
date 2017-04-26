@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,8 @@
 #define FEATURE_SEARCH_HIGHLIGHT
 /* disable scrollbars */
 #define FEATURE_NO_SCROLLBARS
+/* disable X window embedding */
+/* #define FEATURE_NO_XEMBED */
 /* show page title in url completions */
 #define FEATURE_TITLE_IN_COMPLETION
 /* enable the read it later queue */
@@ -41,7 +43,7 @@
 /* show wget style progressbar in status bar */
 #define FEATURE_WGET_PROGRESS_BAR
 #ifdef HAS_GTK3
-/* enables workaround for hight dpi displays */
+/* enables workaround for high dpi displays */
 /* eventually the environment variable GDK_DPI_SCALE=2.0 must be set */
 /* to get the hack working */
 /* #define FEATURE_HIGH_DPI */
@@ -50,6 +52,8 @@
 #define FEATURE_HSTS
 /* enable soup caching - size can be configure by maximum-cache-size setting */
 #define FEATURE_SOUP_CACHE
+/* allow setting default_zoom via config */
+#define FEATURE_DEFAULT_ZOOM
 /* enable the :autocmd feature */
 #define FEATURE_AUTOCMD
 /* enable the :auto-response-header feature */
@@ -104,7 +108,9 @@ opacity:0.7\
 }\
 ._hintElem{\
 background-color:#ff0 !important;\
-color:#000 !important\
+color:#000 !important;\
+transition:all 0 !important;\
+transition-delay:all 0 !important\
 }\
 ._hintElem._hintFocus{\
 background-color:#8f0 !important\

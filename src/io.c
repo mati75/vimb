@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ gboolean io_init_socket(const char *name)
     struct sockaddr_un local;
 
     /* create socket in runtime directory */
-    dir = g_build_filename(util_get_runtime_dir(vb.config.profile), PROJECT, "socket", NULL);
+    dir = g_build_filename(util_get_runtime_dir(vb.config.profile), "socket", NULL);
     util_create_dir_if_not_exists(dir);
     path = g_build_filename(dir, name, NULL);
     g_free(dir);
