@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -201,6 +201,8 @@ static const char *shortcut_lookup(const char *string, const char **query)
             *query = p + 1;
         }
         g_free(key);
+    } else {
+        uri = g_hash_table_lookup(shortcuts, string);
     }
 
     if (!uri && default_key && (uri = g_hash_table_lookup(shortcuts, default_key))) {

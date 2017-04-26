@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,9 +27,11 @@
 #include <JavaScriptCore/JavaScript.h>
 #include <fcntl.h>
 #include <stdio.h>
+#ifndef FEATURE_NO_XEMBED
 #ifdef HAS_GTK3
 #include <gdk/gdkx.h>
 #include <gtk/gtkx.h>
+#endif
 #endif
 #include "config.h"
 #ifdef FEATURE_HSTS
@@ -305,9 +307,7 @@ typedef struct {
     gboolean        enable_register;        /* indicates if registers are filled */
     char            current_register;       /* holds char for current register to be used */
     gboolean        typed;                  /* indicates if th euser type the keys processed as command */
-#ifdef FEATURE_SEARCH_HIGHLIGHT
     int             search_matches;         /* number of matches search results */
-#endif
     char            *fifo_path;             /* holds the path to the control fifo */
     char            *socket_path;           /* holds the path to the control socket */
     char            *pid_str;               /* holds the pid as string */
@@ -375,10 +375,12 @@ typedef struct {
     Config          config;
     VbStyle           style;
     SoupSession     *session;
+#ifndef FEATURE_NO_XEMBED
 #ifdef HAS_GTK3
     Window          embed;
 #else
     GdkNativeWindow embed;
+#endif
 #endif
     GHashTable      *modes; /* all available browser main modes */
 } VbCore;

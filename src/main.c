@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2015 Daniel Carl
+ * Copyright (C) 2012-2016 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -358,7 +358,9 @@ gboolean vb_load_uri(const Arg *arg)
         /* memory allocation */
         char **cmd = g_malloc_n(
             3                       /* basename + uri + ending NULL */
+#ifndef FEATURE_NO_XEMBED
             + (vb.embed ? 2 : 0)
+#endif
             + (vb.config.file ? 2 : 0)
             + (vb.config.profile ? 2 : 0)
             + (vb.config.kioskmode ? 1 : 0)
@@ -371,12 +373,14 @@ gboolean vb_load_uri(const Arg *arg)
 
         /* build commandline */
         cmd[i++] = argv0;
+#ifndef FEATURE_NO_XEMBED
         if (vb.embed) {
             char xid[64];
             snprintf(xid, LENGTH(xid), "%u", (int)vb.embed);
             cmd[i++] = "-e";
             cmd[i++] = xid;
         }
+#endif
         if (vb.config.file) {
             cmd[i++] = "-c";
             cmd[i++] = vb.config.file;
@@ -478,12 +482,10 @@ void vb_update_statusbar()
         g_string_append_printf(status, " %d %s", num, num == 1 ? "download" : "downloads");
     }
 
-#ifdef FEATURE_SEARCH_HIGHLIGHT
     /* show the number of matches search results */
     if (vb.state.search_matches) {
         g_string_append_printf(status, " (%d)", vb.state.search_matches);
     }
-#endif
 
     /* show load status of page or the downloads */
     if (vb.state.progress != 100) {
@@ -795,6 +797,9 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
             dom_install_focus_blur_callbacks(webkit_web_frame_get_dom_document(frame));
             vb.state.done_loading_page = false;
 
+            /* Unset possible last search. */
+            command_search(&((Arg){0}));
+
             break;
 
         case WEBKIT_LOAD_FINISHED:
@@ -811,6 +816,12 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
             if (strncmp(uri, "about:", 6)) {
                 history_add(HISTORY_URL, uri, webkit_web_view_get_title(view));
             }
+#ifdef FEATURE_SOUP_CACHE
+            /* Make sure the caches are written to file to be picked up by new
+             * browser instance. */
+            soup_cache_flush(vb.config.soup_cache);
+            soup_cache_dump(vb.config.soup_cache);
+#endif
             break;
 
         case WEBKIT_LOAD_FAILED:
@@ -822,6 +833,16 @@ static void webview_load_status_cb(WebKitWebView *view, GParamSpec *pspec)
                 if (src) {
                     WebKitNetworkRequest *req = webkit_web_data_source_get_initial_request(src);
                     uri = webkit_network_request_get_uri(req);
+                    /* set the status */
+                    if (g_str_has_prefix(uri, "https://")) {
+                        SoupMessage *msg       = webkit_network_request_get_message(req);
+                        SoupMessageFlags flags = soup_message_get_flags(msg);
+                        set_status(
+                            (flags & SOUP_MESSAGE_CERTIFICATE_TRUSTED) ? VB_STATUS_SSL_VALID : VB_STATUS_SSL_INVALID
+                        );
+                    } else {
+                        set_status(VB_STATUS_NORMAL);
+                    }
                 } else {
                     uri = webkit_web_view_get_uri(view);
                 }
@@ -966,6 +987,7 @@ static void set_status(const StatusType status)
 static void init_core(void)
 {
     Gui *gui = &vb.gui;
+#ifndef FEATURE_NO_XEMBED
     char *xid;
 
     if (vb.embed) {
@@ -983,6 +1005,12 @@ static void init_core(void)
 
     g_setenv("VIMB_XID", xid, true);
     g_free(xid);
+#else
+    gui->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_role(GTK_WINDOW(gui->window), PROJECT_UCFIRST);
+
+    gtk_widget_realize(GTK_WIDGET(gui->window));
+#endif
 
     GdkGeometry hints = {10, 10};
     gtk_window_set_default_size(GTK_WINDOW(gui->window), WIN_WIDTH, WIN_HEIGHT);
@@ -1116,22 +1144,27 @@ static void init_core(void)
         g_object_set(G_OBJECT(setting), "enable-default-context-menu", false, NULL);
     }
 
-    vb.config.default_zoom = 1.0;
-
 #ifdef FEATURE_HIGH_DPI
-    /* fix for high dpi displays */
-    GdkScreen *screen = gdk_window_get_screen(gtk_widget_get_window(vb.gui.window));
-    gdouble dpi = gdk_screen_get_resolution(screen);
-    if (dpi != -1) {
-        WebKitWebSettings *setting = webkit_web_view_get_settings(gui->webview);
-        webkit_web_view_set_full_content_zoom(gui->webview, true);
-        g_object_set(G_OBJECT(setting), "enforce-96-dpi", true, NULL);
+#ifdef FEATURE_DEFAULT_ZOOM
+    /* if default_zoom was not changed via config */
+    if (vb.config.default_zoom == 1.0) {
+#endif
+        /* fix for high dpi displays */
+        GdkScreen *screen = gdk_window_get_screen(gtk_widget_get_window(vb.gui.window));
+        gdouble dpi = gdk_screen_get_resolution(screen);
+        if (dpi != -1) {
+            WebKitWebSettings *setting = webkit_web_view_get_settings(gui->webview);
+            webkit_web_view_set_full_content_zoom(gui->webview, true);
+            g_object_set(G_OBJECT(setting), "enforce-96-dpi", true, NULL);
 
-        /* calculate the zoom level based on 96 dpi */
-        vb.config.default_zoom = dpi/96;
+            /* calculate the zoom level based on 96 dpi */
+            vb.config.default_zoom = dpi/96;
 
-        webkit_web_view_set_zoom_level(gui->webview, vb.config.default_zoom);
+            webkit_web_view_set_zoom_level(gui->webview, vb.config.default_zoom);
+        }
+#ifdef FEATURE_DEFAULT_ZOOM
     }
+#endif
 #endif
 }
 
@@ -1801,7 +1834,9 @@ static gboolean autocmdOptionArgFunc(const gchar *option_name, const gchar *valu
 
 int main(int argc, char *argv[])
 {
+#ifndef FEATURE_NO_XEMBED
     static char *winid   = NULL;
+#endif
     static gboolean ver  = false;
 #ifdef FEATURE_SOCKET
     static gboolean dump = false;
@@ -1812,7 +1847,9 @@ int main(int argc, char *argv[])
         {"cmd", 'C', 0, G_OPTION_ARG_CALLBACK, autocmdOptionArgFunc, "Ex command run before first page is loaded", NULL},
         {"config", 'c', 0, G_OPTION_ARG_FILENAME, &vb.config.file, "Custom configuration file", NULL},
         {"profile", 'p', 0, G_OPTION_ARG_STRING, &vb.config.profile, "Profile name", NULL},
+#ifndef FEATURE_NO_XEMBED
         {"embed", 'e', 0, G_OPTION_ARG_STRING, &winid, "Reparents to window specified by xid", NULL},
+#endif
 #ifdef FEATURE_SOCKET
         {"dump", 'd', 0, G_OPTION_ARG_NONE, &dump, "Dump the socket path to stdout", NULL},
         {"socket", 's', 0, G_OPTION_ARG_NONE, &vb.config.socket, "Create control socket", NULL},
@@ -1830,16 +1867,22 @@ int main(int argc, char *argv[])
     }
 
     if (ver) {
-        fprintf(stdout, "%s/%s\n", PROJECT, VERSION);
+        fprintf(stdout, "%s, version %s\n", PROJECT, VERSION);
+        fprintf(stdout, "Copyright © 2012 - 2016 Daniel Carl <danielcarl@gmx.de>\n");
+        fprintf(stdout, "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n");
+        fprintf(stdout, "This is free software; you are free to change and redistribute it.\n");
+        fprintf(stdout, "There is NO WARRANTY, to the extent permitted by law.\n");
         return EXIT_SUCCESS;
     }
 
     /* save vimb basename */
     argv0 = argv[0];
 
+#ifndef FEATURE_NO_XEMBED
     if (winid) {
         vb.embed = strtol(winid, NULL, 0);
     }
+#endif
 
     vb.state.pid_str = g_strdup_printf("%d", (int)getpid());
     g_setenv("VIMB_PID", vb.state.pid_str, true);
