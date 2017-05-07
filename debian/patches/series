@@ -1,2 +1,2 @@
 01-add-cppflags.patch
-02-fix-hyphen-used-as-minus-sign.patch
+#02-fix-hyphen-used-as-minus-sign.patch
