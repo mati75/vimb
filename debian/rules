@@ -6,6 +6,7 @@ export CXXFLAGS:=$(shell dpkg-buildflags --get CXXFLAGS)
 export LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
 
 export DEB_BUILD_OPTIONS=nocheck
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 export PREFIX=/usr
 

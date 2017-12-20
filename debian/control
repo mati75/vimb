@@ -1,9 +1,9 @@
 Source: vimb
 Section: misc
-Priority: extra
+Priority: optional
 Maintainer: Mateusz Łukasik <mati75@linuxmint.pl>
-Build-Depends: debhelper (>= 10), libsoup2.4-dev, libwebkitgtk-dev
-Standards-Version: 3.9.8
+Build-Depends: debhelper (>= 10), libsoup2.4-dev, libwebkit2gtk-4.0-dev
+Standards-Version: 4.1.2
 Homepage: https://fanglingsu.github.io/vimb/
 Vcs-Browser: https://github.com/mati75/vimb
 Vcs-Git: https://github.com/mati75/vimb
