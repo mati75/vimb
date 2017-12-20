@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2016 Daniel Carl
+ * Copyright (C) 2012-2017 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
  * along with this program. If not, see http://www.gnu.org/licenses/.
  */
 
+#include <string.h>
+
 #include "config.h"
 #ifdef FEATURE_AUTOCMD
 #include "autocmd.h"
@@ -31,35 +33,31 @@ typedef struct {
     char *pattern;  /* list of patterns the uri is matched agains */
 } AutoCmd;
 
-typedef struct {
+struct AuGroup {
     char    *name;
     GSList  *cmds;
-} AuGroup;
+};
+
+typedef struct AuGroup AuGroup;
 
 static struct {
     const char *name;
     guint      bits;
 } events[] = {
     {"*",                0x00ff},
-    {"LoadProvisional",  0x0001},
-    {"LoadCommited",     0x0002},
-    {"LoadFirstLayout",  0x0004},
+    {"LoadStarted",      0x0001},
+    {"LoadCommitted",    0x0002},
+    /*{"LoadFirstLayout",  0x0004},*/
     {"LoadFinished",     0x0008},
-    {"LoadFailed",       0x0010},
-    {"DownloadStart",    0x0020},
+    /*{"LoadFailed",       0x0010},*/
+    {"DownloadStarted",  0x0020},
     {"DownloadFinished", 0x0040},
     {"DownloadFailed",   0x0080},
 };
 
-extern VbCore vb;
-
-static AuGroup *curgroup = NULL;
-static GSList  *groups   = NULL;
-static guint   usedbits  = 0;       /* holds all used event bits */
-
-static GSList *get_group(const char *name);
-static guint get_event_bits(const char *name);
-static void rebuild_used_bits(void);
+static GSList *get_group(Client *c, const char *name);
+static guint get_event_bits(Client *c, const char *name);
+static void rebuild_used_bits(Client *c);
 static char *get_next_word(char **line);
 static AuGroup *new_group(const char *name);
 static void free_group(AuGroup *group);
@@ -67,23 +65,24 @@ static AutoCmd *new_autocmd(const char *excmd, const char *pattern);
 static void free_autocmd(AutoCmd *cmd);
 
 
-void autocmd_init(void)
+void autocmd_init(Client *c)
 {
-    curgroup = new_group("end");
-    groups   = g_slist_prepend(groups, curgroup);
+    c->autocmd.curgroup = new_group("end");
+    c->autocmd.groups   = g_slist_prepend(c->autocmd.groups, c->autocmd.curgroup);
+    c->autocmd.usedbits = 0;
 }
 
-void autocmd_cleanup(void)
+void autocmd_cleanup(Client *c)
 {
-    if (groups) {
-        g_slist_free_full(groups, (GDestroyNotify)free_group);
+    if (c->autocmd.groups) {
+        g_slist_free_full(c->autocmd.groups, (GDestroyNotify)free_group);
     }
 }
 
 /**
  * Handle the :augroup {group} ex command.
  */
-gboolean autocmd_augroup(char *name, gboolean delete)
+gboolean autocmd_augroup(Client *c, char *name, gboolean delete)
 {
     GSList *item;
 
@@ -93,11 +92,11 @@ gboolean autocmd_augroup(char *name, gboolean delete)
 
     /* check for group "end" that marks the default group */
     if (!strcmp(name, "end")) {
-        curgroup = (AuGroup*)groups->data;
+        c->autocmd.curgroup = (AuGroup*)c->autocmd.groups->data;
         return true;
     }
 
-    item = get_group(name);
+    item = get_group(c, name);
 
     /* check if the group is going to be removed */
     if (delete) {
@@ -105,18 +104,18 @@ gboolean autocmd_augroup(char *name, gboolean delete)
         if (!item) {
             return true;
         }
-        if (curgroup == (AuGroup*)item->data) {
+        if (c->autocmd.curgroup == (AuGroup*)item->data) {
             /* if the group to delete is the current - switch the the default
              * group after removing it */
-            curgroup = (AuGroup*)groups->data;
+            c->autocmd.curgroup = (AuGroup*)c->autocmd.groups->data;
         }
 
         /* now remove the group */
         free_group((AuGroup*)item->data);
-        groups = g_slist_delete_link(groups, item);
+        c->autocmd.groups = g_slist_delete_link(c->autocmd.groups, item);
 
         /* there where autocmds remove - so recreate the usedbits */
-        rebuild_used_bits();
+        rebuild_used_bits(c);
 
         return true;
     }
@@ -124,16 +123,16 @@ gboolean autocmd_augroup(char *name, gboolean delete)
     /* check if the group does already exists */
     if (item) {
         /* if the group is found in the known groups use it as current */
-        curgroup = (AuGroup*)item->data;
+        c->autocmd.curgroup = (AuGroup*)item->data;
 
         return true;
     }
 
     /* create a new group and use it as current */
-    curgroup = new_group(name);
+    c->autocmd.curgroup = new_group(name);
 
     /* append it to known groups */
-    groups = g_slist_prepend(groups, curgroup);
+    c->autocmd.groups = g_slist_prepend(c->autocmd.groups, c->autocmd.curgroup);
 
     return true;
 }
@@ -144,7 +143,7 @@ gboolean autocmd_augroup(char *name, gboolean delete)
  * :au[tocmd]! [group] {event} {pat} [nested] {cmd}
  * group and nested flag are not supported at the moment.
  */
-gboolean autocmd_add(char *name, gboolean delete)
+gboolean autocmd_add(Client *c, char *name, gboolean delete)
 {
     guint bits;
     char *parse, *word, *pattern, *excmd;
@@ -157,7 +156,7 @@ gboolean autocmd_add(char *name, gboolean delete)
     word = get_next_word(&parse);
     if (word) {
         /* check if the word is a known group name */
-        item = get_group(word);
+        item = get_group(c, word);
         if (item) {
             grp = (AuGroup*)item->data;
 
@@ -167,12 +166,12 @@ gboolean autocmd_add(char *name, gboolean delete)
     }
     if (!grp) {
         /* no group found - use the current one */
-        grp = curgroup;
+        grp = c->autocmd.curgroup;
     }
 
     /* parse event name - if none was matched run it for all events */
     if (word) {
-        bits = get_event_bits(word);
+        bits = get_event_bits(c, word);
         if (!bits) {
             return false;
         }
@@ -220,7 +219,7 @@ gboolean autocmd_add(char *name, gboolean delete)
 
         /* if ther was at least one command removed - rebuilt the used bits */
         if (removed) {
-            rebuild_used_bits();
+            rebuild_used_bits(c);
         }
 
         return true;
@@ -235,7 +234,7 @@ gboolean autocmd_add(char *name, gboolean delete)
         grp->cmds = g_slist_append(grp->cmds, cmd);
 
         /* merge the autocmd bits into the used bits */
-        usedbits |= cmd->bits;
+        c->autocmd.usedbits |= cmd->bits;
     }
 
     return true;
@@ -244,7 +243,7 @@ gboolean autocmd_add(char *name, gboolean delete)
 /**
  * Run named auto command.
  */
-gboolean autocmd_run(AuEvent event, const char *uri, const char *group)
+gboolean autocmd_run(Client *c, AuEvent event, const char *uri, const char *group)
 {
     GSList  *lg, *lc;
     AuGroup *grp;
@@ -252,12 +251,12 @@ gboolean autocmd_run(AuEvent event, const char *uri, const char *group)
     guint bits = events[event].bits;
 
     /* if there is no autocmd for this event - skip here */
-    if (!(usedbits & bits)) {
+    if (!(c->autocmd.usedbits & bits)) {
         return true;
     }
 
     /* loop over the groups and find matching commands */
-    for (lg = groups; lg; lg = lg->next) {
+    for (lg = c->autocmd.groups; lg; lg = lg->next) {
         grp = lg->data;
         /* if a group was given - skip all none matching groupes */
         if (group && strcmp(group, grp->name)) {
@@ -278,27 +277,27 @@ gboolean autocmd_run(AuEvent event, const char *uri, const char *group)
             /* run the command */
             /* TODO shoult the result be tested for RESULT_COMPLETE? */
             /* run command and make sure it's not writte to command history */
-            ex_run_string(cmd->excmd, false);
+            ex_run_string(c, cmd->excmd, false);
         }
     }
 
     return true;
 }
 
-gboolean autocmd_fill_group_completion(GtkListStore *store, const char *input)
+gboolean autocmd_fill_group_completion(Client *c, GtkListStore *store, const char *input)
 {
     GSList *lg;
     gboolean found = false;
     GtkTreeIter iter;
 
     if (!input || !*input) {
-        for (lg = groups; lg; lg = lg->next) {
+        for (lg = c->autocmd.groups; lg; lg = lg->next) {
             gtk_list_store_append(store, &iter);
             gtk_list_store_set(store, &iter, COMPLETION_STORE_FIRST, ((AuGroup*)lg->data)->name, -1);
             found = true;
         }
     } else {
-        for (lg = groups; lg; lg = lg->next) {
+        for (lg = c->autocmd.groups; lg; lg = lg->next) {
             char *value = ((AuGroup*)lg->data)->name;
             if (g_str_has_prefix(value, input)) {
                 gtk_list_store_append(store, &iter);
@@ -311,7 +310,7 @@ gboolean autocmd_fill_group_completion(GtkListStore *store, const char *input)
     return found;
 }
 
-gboolean autocmd_fill_event_completion(GtkListStore *store, const char *input)
+gboolean autocmd_fill_event_completion(Client *c, GtkListStore *store, const char *input)
 {
     int i;
     const char *value;
@@ -341,12 +340,12 @@ gboolean autocmd_fill_event_completion(GtkListStore *store, const char *input)
 /**
  * Get the augroup by it's name.
  */
-static GSList *get_group(const char *name)
+static GSList *get_group(Client *c, const char *name)
 {
     GSList  *lg;
     AuGroup *grp;
 
-    for (lg = groups; lg; lg = lg->next) {
+    for (lg = c->autocmd.groups; lg; lg = lg->next) {
         grp = lg->data;
         if (!strcmp(grp->name, name)) {
             return lg;
@@ -356,7 +355,7 @@ static GSList *get_group(const char *name)
     return NULL;
 }
 
-static guint get_event_bits(const char *name)
+static guint get_event_bits(Client *c, const char *name)
 {
     int result = 0;
 
@@ -389,7 +388,7 @@ static guint get_event_bits(const char *name)
         /* check if the end was reached without a match */
         if (i >= LENGTH(events)) {
             /* is this the right place to write the error */
-            vb_echo(VB_MSG_ERROR, true, "Bad autocmd event name: %s", name);
+            vb_echo(c, MSG_ERROR, TRUE, "Bad autocmd event name: %s", name);
             return 0;
         }
     }
@@ -401,20 +400,20 @@ static guint get_event_bits(const char *name)
  * Rebuild the usedbits from scratch.
  * Save all used autocmd event bits in the bitmap.
  */
-static void rebuild_used_bits(void)
+static void rebuild_used_bits(Client *c)
 {
     GSList *lc, *lg;
     AuGroup *grp;
 
     /* clear the current set bits */
-    usedbits = 0;
+    c->autocmd.usedbits = 0;
     /* loop over the groups */
-    for (lg = groups; lg; lg = lg->next) {
+    for (lg = c->autocmd.groups; lg; lg = lg->next) {
         grp = (AuGroup*)lg->data;
 
         /* merge the used event bints into the bitmap */
         for (lc = grp->cmds; lc; lc = lc->next) {
-            usedbits |= ((AutoCmd*)lc->data)->bits;
+            c->autocmd.usedbits |= ((AutoCmd*)lc->data)->bits;
         }
     }
 }
