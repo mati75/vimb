@@ -297,6 +297,35 @@ remain visible so that another one can be selected with the same action
 as the first.
 Note that the extended hint mode can only be combined with the following
 hint modes \fII o p P s t y Y\fP.
+.PD
+.TP
+.B Motion
+.RS
+Motions commands are like those for normal mode except that CTRL is used as
+modifier.
+But they can not be used together with a count.
+.PP
+.PD 0
+.TP
+.B CTRL-F
+Scroll one page down.
+.TP
+.B CTRL-B
+Scroll one page up.
+.TP
+.B CTRL-D
+Scroll half page down.
+.TP
+.B CTRL-U
+Scroll half page up.
+.TP
+.B CTRL-J
+Scroll one step down.
+.TP
+.B CTRL-K
+Scroll one step up.
+.PD
+.RE
 .SS Searching
 .TP
 .BI / QUERY ", ?" QUERY
@@ -592,7 +621,9 @@ it.
 .BI ":se[t] " var = value
 Set configuration values named by \fIvar\fP.
 To set boolean variable you should use 'on', 'off' or 'true' and 'false'.
-Colors are given as hexadecimal value like '#f57700'.
+Colors are given as hexadecimal value like '#f57700'. Spaces or more equals
+signs in \fIvalue\fP just work without quotes: for example,
+":set sans-serif-font=Some Sans Font".
 .TP
 .BI ":se[t] " var += value
 Add the \fIvalue\fP to a number option, or append the \fIvalue\fP to a string
@@ -674,11 +705,9 @@ Fired right after a download is started.
 .TP
 .B DownloadFinished
 Fired if a Vimb managed download is finished.
-For external download this event is not available.
 .TP
 .B DownloadFailed
 Fired if a Vimb managed download failed.
-For external download this event is not available.
 .PD
 .RE
 .TP
@@ -938,7 +967,7 @@ The search completion allows a filtered list of already done searches.
 This completion starts by `/` or `?` in inputbox and performs a prefix
 comparison for further typed chars.
 .SH SETTINGS
-All settings listed below can be set with the `:set' command.
+All settings listed below can be set with the `:set' command. See \fBSettings\fP under \fBCOMMAND MODE\fP for syntax.
 .TP
 .B accelerated-2d-canvas (bool)
 Enable or disable accelerated 2D canvas.
@@ -1186,6 +1215,9 @@ Number of pixel vimb scrolls if 'j' or 'k' is used.
 .B serif-font (string)
 The font family used as the default for content using serif font.
 .TP
+.B show-titlebar (bool)
+Determines whether the titlebar is shown (on systems that provide window decoration). Defaults to true.
+.TP
 .B site-specific-quirks (bool)
 Enables the site-specific compatibility workarounds.
 .TP
@@ -1291,8 +1323,8 @@ this subdirectory.
 .I config
 Configuration file to set WebKit setting, some GUI styles and keybindings.
 .TP
-.I cookies
-Cookie store file.
+.I cookies.db
+Sqlite cookie storage.
 .TP
 .I closed
 Holds the URIs of last closed browser windows.

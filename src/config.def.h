@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,8 +24,6 @@
 #define FEATURE_TITLE_PROGRESS
 /* show page title in url completions */
 #define FEATURE_TITLE_IN_COMPLETION
-/* support gui style settings compatible with vimb2 */
-/* #define FEATURE_GUI_STYLE_VIMB2_COMPAT */
 /* enable the read it later queue */
 #define FEATURE_QUEUE
 

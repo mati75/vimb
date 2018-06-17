@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,12 +20,14 @@
 #ifndef _HANDLERS_H
 #define _HANDLERS_H
 
-void handler_init(Client *c);
-void handler_cleanup(Client *c);
-gboolean handler_add(Client *c, const char *key, const char *cmd);
-gboolean handler_remove(Client *c, const char *key);
-gboolean handler_handle_uri(Client *c, const char *uri);
-gboolean handler_fill_completion(Client *c, GtkListStore *store, const char *input);
+typedef struct handler Handler;
+
+Handler *handler_new();
+void handler_free(Handler *h);
+gboolean handler_add(Handler *h, const char *key, const char *cmd);
+gboolean handler_remove(Handler *h, const char *key);
+gboolean handler_handle_uri(Handler *h, const char *uri);
+gboolean handler_fill_completion(Handler *h, GtkListStore *store, const char *input);
 
 #endif /* end of include guard: _HANDLERS_H */
 

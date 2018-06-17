@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -78,6 +78,7 @@ static const unsigned char chartable[256] = {
 
 /* get internal representation for conrol character ^C */
 #define CTRL(c)             ((c) ^ 0x40)
+#define UNCTRL(c)           (((c) ^ 0x40) + 'a' - 'A')
 
 #define IS_SPECIAL(c)       (c < 0)
 

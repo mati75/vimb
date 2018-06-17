@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+### Changed
+### Fixed
+### Removed
+
+## [3.2.0] - 2018-06-16
+
+### Added
+* Allow basic motion commands for hinting too.
+* Show the numbers of search matches in status bar.
+* Show dialog if the page makes a permission request e.g. gelocation to allow
+  the user to make a decission.
+* new Setting `show-titlebar` to toggle window decorations.
+
+### Changed
+* Use sqlite as cookie storage #470 to prevent cookies lost on running many
+  vimb instances.
+* Start vimb with maximized window #483.
+* Hints are now styled based on the vimbhint attributes. The old additional set
+  classes are not set anymore to the hints. So customized css for the hints have
+  to be adapted to this.
+* Element ID is stored in case the editor was spawned. So it's now possible to
+  start the editor, load another page, come back and paste the edotor contents
+  (thanks to Sven Speckmaier).
+
+### Fixed
+* Fixed none cleaned webextension object files on `make clean`.
+* Remove none used gui styling for completion.
+
+### Removed
+* Removed webkit1 combat code.
 
 ## [3.1.0] - 2017-12-18
 
@@ -163,7 +194,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   cookie file
 * Fixed none POSIX `echo -n` call
 
-[Unreleased]: https://github.com/fanglingsu/vimb/compare/master...3.1.0
+[Unreleased]: https://github.com/fanglingsu/vimb/compare/3.2.0...master
+[3.2.0]: https://github.com/fanglingsu/vimb/compare/3.1.0...3.2.0
 [3.1.0]: https://github.com/fanglingsu/vimb/compare/3.0-alpha...3.1.0
 [3.0-alpha]: https://github.com/fanglingsu/vimb/compare/2.12...3.0-alpha
 [2.12]: https://github.com/fanglingsu/vimb/compare/2.11...2.12

@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -242,6 +242,9 @@ void ex_leave(Client *c)
 {
     completion_clean(c);
     hints_clear(c);
+    if (c->config.incsearch) {
+        command_search(c, &((Arg){0, NULL}), FALSE);
+    }
 }
 
 /**
@@ -749,7 +752,7 @@ static gboolean parse_rhs(Client *c, const char **input, ExArg *arg)
      * EX_FLAG_CMD is not set also on | */
     while (**input && **input != '\n' && (cmdlist || **input != '|')) {
         /* check for expansion placeholder */
-        util_parse_expansion(c, input, arg->rhs, flags, "|\\");
+        util_parse_expansion(c->state, input, arg->rhs, flags, "|\\");
 
         if (VB_IS_SEPARATOR(**input)) {
             /* add tilde expansion for next loop needs to be first char or to
@@ -1065,12 +1068,12 @@ static VbCmdResult ex_handlers(Client *c, const ExArg *arg)
         case EX_HANDADD:
             if (arg->rhs->len && (p = strchr(arg->rhs->str, '='))) {
                 *p++ = '\0';
-                res = handler_add(c, arg->rhs->str, p);
+                res = handler_add(c->handler, arg->rhs->str, p);
             }
             break;
 
         case EX_HANDREM:
-            res = handler_remove(c, arg->rhs->str);
+            res = handler_remove(c->handler, arg->rhs->str);
             break;
 
         default:
@@ -1099,18 +1102,18 @@ static VbCmdResult ex_shortcut(Client *c, const ExArg *arg)
                 *uri++ = '\0'; /* devide key and uri */
                 g_strstrip(arg->rhs->str);
                 g_strstrip(uri);
-                success = shortcut_add(c, arg->rhs->str, uri);
+                success = shortcut_add(c->config.shortcuts, arg->rhs->str, uri);
             }
             break;
 
         case EX_SCR:
             g_strstrip(arg->rhs->str);
-            success = shortcut_remove(c, arg->rhs->str);
+            success = shortcut_remove(c->config.shortcuts, arg->rhs->str);
             break;
 
         case EX_SCD:
             g_strstrip(arg->rhs->str);
-            success = shortcut_set_default(c, arg->rhs->str);
+            success = shortcut_set_default(c->config.shortcuts, arg->rhs->str);
             break;
 
         default:
@@ -1138,13 +1141,6 @@ static gboolean complete(Client *c, short direction)
     gboolean found = FALSE;
     gboolean sort  = TRUE;
     GtkListStore *store;
-
-    /* if direction is 0 stop the completion */
-    if (!direction) {
-        completion_clean(c);
-
-        return TRUE;
-    }
 
     input = vb_input_get_text(c);
     /* if completion was already started move to the next/prev item */
@@ -1236,16 +1232,16 @@ static gboolean complete(Client *c, short direction)
 
                 case EX_SCR: /* Fallthrough */
                 case EX_SCD:
-                    found = shortcut_fill_completion(c, store, token);
+                    found = shortcut_fill_completion(c->config.shortcuts, store, token);
                     break;
 
                 case EX_HANDREM:
-                    found = handler_fill_completion(c, store, token);
+                    found = handler_fill_completion(c->handler, store, token);
                     break;
 
                 case EX_SAVE: /* Fallthrough */
                 case EX_SOURCE:
-                    found = util_filename_fill_completion(c, store, token);
+                    found = util_filename_fill_completion(c->state, store, token);
                     break;
 
 #ifdef FEATURE_AUTOCMD

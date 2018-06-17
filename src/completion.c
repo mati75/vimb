@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -96,7 +96,7 @@ gboolean completion_create(Client *c, GtkTreeModel *model,
 
     /* prepare the tree view */
     comp->win  = gtk_scrolled_window_new(NULL, NULL);
-    comp->tree = gtk_tree_view_new();
+    comp->tree = gtk_tree_view_new_with_model(model);
 
     gtk_style_context_add_provider(gtk_widget_get_style_context(comp->tree),
             GTK_STYLE_PROVIDER(vb.style_provider),
@@ -109,7 +109,6 @@ gboolean completion_create(Client *c, GtkTreeModel *model,
     gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(comp->tree), FALSE);
     /* we have only on line per item so we can use the faster fixed heigh mode */
     gtk_tree_view_set_fixed_height_mode(GTK_TREE_VIEW(comp->tree), TRUE);
-    gtk_tree_view_set_model(GTK_TREE_VIEW(comp->tree), model);
     g_object_unref(model);
 
     /* prepare the selection */
@@ -127,7 +126,6 @@ gboolean completion_create(Client *c, GtkTreeModel *model,
 
     renderer = gtk_cell_renderer_text_new();
     g_object_set(renderer,
-        "font-desc", c->config.comp_font,
         "ellipsize", PANGO_ELLIPSIZE_MIDDLE,
         NULL
     );
@@ -143,7 +141,6 @@ gboolean completion_create(Client *c, GtkTreeModel *model,
 
     renderer = gtk_cell_renderer_text_new();
     g_object_set(renderer,
-        "font-desc", c->config.comp_font,
         "ellipsize", PANGO_ELLIPSIZE_END,
         NULL
     );
@@ -233,38 +230,6 @@ gboolean completion_next(Client *c, gboolean back)
     gtk_tree_path_free(path);
 
     return TRUE;
-}
-
-/**
- * Fills the given list store by matching data of also given src list.
- */
-gboolean completion_fill(GtkListStore *store, const char *input, GList *src)
-{
-    gboolean found = FALSE;
-    GtkTreeIter iter;
-
-    /* If no filter input given - copy all entries into the data store. */
-    if (!input || !*input) {
-        for (GList *l = src; l; l = l->next) {
-            gtk_list_store_append(store, &iter);
-            gtk_list_store_set(store, &iter, COMPLETION_STORE_FIRST, l->data, -1);
-            found = TRUE;
-        }
-        return found;
-    }
-
-    /* If filter input is given - copy matching list entires into data store.
-     * Strings are compared by prefix matching. */
-    for (GList *l = src; l; l = l->next) {
-        char *value = (char*)l->data;
-        if (g_str_has_prefix(value, input)) {
-            gtk_list_store_append(store, &iter);
-            gtk_list_store_set(store, &iter, COMPLETION_STORE_FIRST, l->data, -1);
-            found = TRUE;
-        }
-    }
-
-    return found;
 }
 
 static gboolean tree_selection_func(GtkTreeSelection *selection,
