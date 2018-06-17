@@ -1,19 +1,20 @@
-BASEDIR=../..
-include $(BASEDIR)/config.mk
+include ../../config.mk
 
 OBJ = $(patsubst %.c, %.lo, $(wildcard *.c))
 
 all: $(EXTTARGET)
 
 clean:
-	$(RM) $(EXTTARGET) *.lo
+	$(RM) $(EXTTARGET) $(OBJ)
 
 $(EXTTARGET): $(OBJ)
 	@echo "$(CC) $@"
-	$(Q)$(CC) $(OBJ) $(EXT_LDFLAGS) -o $@
+	$(Q)$(CC) $(OBJ) $(EXTLDFLAGS) -o $@
 
 %.lo: %.c
 	@echo "${CC} $@"
-	$(Q)$(CC) $(EXT_CFLAGS) -fPIC -c -o $@ $<
+	$(Q)$(CC) $(EXTCPPFLAGS) $(EXTCFLAGS) -fPIC -c -o $@ $<
+
+-include $(OBJ:.lo=.d)
 
 .PHONY: all clean

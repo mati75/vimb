@@ -1,47 +1,41 @@
-BASEDIR=..
-include $(BASEDIR)/config.mk
+include ../config.mk
 
-SUBDIRS  = webextension
-OBJ      = $(patsubst %.c, %.o, $(wildcard *.c))
-JSFILES  = $(wildcard scripts/*.js)
-CSSFILES = $(wildcard scripts/*.css)
+OBJ = $(patsubst %.c, %.o, $(wildcard *.c))
 
-all: vimb $(SUBDIRS:%=%.subdir-all)
+all: vimb webextension.subdir-all
 
-clean: $(SUBDIRS:%=%.subdir-clean)
-	$(RM) vimb *.o scripts/scripts.h
+clean: webextension.subdir-clean
+	$(RM) vimb $(OBJ)
 
 vimb: $(OBJ)
 	@echo "${CC} $@"
-	$(Q)$(CC) $(OBJ) $(VIMB_LDFLAGS) -o $@
+	$(Q)$(CC) $(OBJ) $(LDFLAGS) -o $@
 
-$(OBJ): config.h $(BASEDIR)/config.mk
+vimb.so: $(OBJ)
+	$(Q)$(CC) -shared $(OBJ) $(LDFLAGS) -o $@
+
+$(OBJ): config.h ../config.mk
 
 normal.o: scripts/scripts.h
 
 setting.o: scripts/scripts.h
 
--include $(OBJ:.o=.d)
+scripts/scripts.h: scripts.subdir-all
 
 config.h:
 	@echo create $@ from config.def.h
 	$(Q)cp config.def.h $@
 
-scripts/scripts.h: $(JSFILES) $(CSSFILES)
-	$(Q)$(RM) $@
-	@echo "create $@ from *.{css,js}"
-	$(Q)for file in $(JSFILES) $(CSSFILES); do \
-		./scripts/js2h.sh $$file >> $@; \
-	done
-
 %.o: %.c
 	@echo "${CC} $@"
-	$(Q)$(CC) $(VIMB_CFLAGS) -c -o $@ $<
+	$(Q)$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 %.subdir-all: config.h
 	$(Q)$(MAKE) -C $*
 
 %.subdir-clean:
 	$(Q)$(MAKE) -C $* clean
+
+-include $(OBJ:.o=.d)
 
 .PHONY: all clean

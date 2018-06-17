@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,6 +53,7 @@ static GtkWidget *create_window(Client *c);
 static gboolean input_clear(Client *c);
 static void input_print(Client *c, MessageType type, gboolean hide,
         const char *message);
+static gboolean is_plausible_uri(const char *path);
 static void marks_clear(Client *c);
 static void mode_free(Mode *mode);
 static void on_textbuffer_changed(GtkTextBuffer *textbuffer, gpointer user_data);
@@ -100,6 +101,9 @@ static void vimb_cleanup(void);
 #endif
 static void vimb_setup(void);
 static WebKitWebView *webview_new(Client *c, WebKitWebView *webview);
+static void on_counted_matches(WebKitFindController *finder, guint count, Client *c);
+static gboolean on_permission_request(WebKitWebView *webview,
+        WebKitPermissionRequest *request, Client *c);
 static void on_script_message_focus(WebKitUserContentManager *manager,
         WebKitJavascriptResult *res, gpointer data);
 static gboolean profileOptionArgFunc(const gchar *option_name,
@@ -131,7 +135,7 @@ gboolean vb_download_set_destination(Client *c, WebKitDownload *download,
 
     /* Prepare the path to save the download. */
     if (path && *path) {
-        file = util_build_path(c, path, download_path);
+        file = util_build_path(c->state, path, download_path);
 
         /* if file is an directory append a file name */
         if (g_file_test(file, (G_FILE_TEST_IS_DIR))) {
@@ -140,7 +144,7 @@ gboolean vb_download_set_destination(Client *c, WebKitDownload *download,
             g_free(dir);
         }
     } else {
-        file = util_build_path(c, suggested_filename, download_path);
+        file = util_build_path(c->state, suggested_filename, download_path);
     }
 
     g_free(basename);
@@ -379,9 +383,10 @@ gboolean vb_load_uri(Client *c, const Arg *arg)
         rp  = realpath(path, NULL);
         uri = g_strconcat("file://", rp, NULL);
         free(rp);
-    } else if (strchr(path, ' ') || !strchr(path, '.')) {
-        /* use a shortcut if path contains spaces or no dot */
-        uri = shortcut_get_uri(c, path);
+    } else if (!is_plausible_uri(path)) {
+        /* use a shortcut if path contains spaces or doesn't contain typical
+         * tokens ('.', [:] for IPv6 addresses, 'localhost') */
+        uri = shortcut_get_uri(c->config.shortcuts, path);
     }
 
     if (!uri) {
@@ -663,10 +668,11 @@ static void client_destroy(Client *c)
     map_cleanup(c);
     register_cleanup(c);
     setting_cleanup(c);
-    handler_cleanup(c);
 #ifdef FEATURE_AUTOCMD
     autocmd_cleanup(c);
 #endif
+    handler_free(c->handler);
+    shortcut_free(c->config.shortcuts);
 
     g_slice_free(Client, c);
 
@@ -693,16 +699,20 @@ static Client *client_new(WebKitWebView *webview)
     vb.clients = c;
 
     c->state.progress = 100;
+    c->config.shortcuts = shortcut_new();
 
     completion_init(c);
     map_init(c);
-    handler_init(c);
+    c->handler = handler_new();
 #ifdef FEATURE_AUTOCMD
     autocmd_init(c);
 #endif
 
     /* webview */
     c->webview   = webview_new(c, webview);
+    c->finder    = webkit_web_view_get_find_controller(c->webview);
+    g_signal_connect(c->finder, "counted-matches", G_CALLBACK(on_counted_matches), c);
+
     c->page_id   = webkit_web_view_get_page_id(c->webview);
     c->inspector = webkit_web_view_get_inspector(c->webview);
 
@@ -791,6 +801,7 @@ static GtkWidget *create_window(Client *c)
         window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
         gtk_window_set_role(GTK_WINDOW(window), PROJECT_UCFIRST);
         gtk_window_set_default_size(GTK_WINDOW(window), WIN_WIDTH, WIN_HEIGHT);
+        gtk_window_maximize(GTK_WINDOW(window));
     }
 
     g_object_connect(
@@ -845,6 +856,28 @@ static void input_print(Client *c, MessageType type, gboolean hide,
         g_source_remove(c->state.input_timer);
         c->state.input_timer = 0;
     }
+}
+
+/**
+ * Tests if a path is likely intended to be an URI (given that it's not a file
+ * path or containing "://").
+ */
+static gboolean is_plausible_uri(const char *path)
+{
+    const char *i, *j;
+    if (strchr(path, ' ')) {
+        return FALSE;
+    }
+    if (strchr(path, '.')) {
+        return TRUE;
+    }
+    if ((i = strstr(path, "localhost")) &&
+        (i == path || i[-1] == '/' || i[-1] == '@') &&
+        (i[9] == 0 || i[9]  == '/' || i[9] == ':')
+    ) {
+        return TRUE;
+    }
+    return (i = strchr(path, '[')) && (j = strchr(i, ':')) && strchr(j, ']');
 }
 
 /**
@@ -1197,7 +1230,7 @@ static gboolean on_webview_decide_policy(WebKitWebView *webview,
             uri    = webkit_uri_request_get_uri(req);
 
             /* Try to handle with specific protocol handler. */
-            if (handler_handle_uri(c, uri)) {
+            if (handler_handle_uri(c->handler, uri)) {
                 webkit_policy_decision_ignore(dec);
                 return TRUE;
             }
@@ -1609,7 +1642,7 @@ static void vimb_setup(void)
 
     /* Setup those files that are use multiple time during runtime */
     vb.files[FILES_CLOSED]     = util_get_filepath(path, "closed", TRUE);
-    vb.files[FILES_COOKIE]     = util_get_filepath(path, "cookies", TRUE);
+    vb.files[FILES_COOKIE]     = util_get_filepath(path, "cookies.db", TRUE);
     vb.files[FILES_USER_STYLE] = util_get_filepath(path, "style.css", FALSE);
     vb.files[FILES_SCRIPT]     = util_get_filepath(path, "scripts.js", FALSE);
     vb.files[FILES_HISTORY]    = util_get_filepath(path, "history", TRUE);
@@ -1634,7 +1667,7 @@ static void vimb_setup(void)
         webkit_cookie_manager_set_persistent_storage(
                 cm,
                 vb.files[FILES_COOKIE],
-                WEBKIT_COOKIE_PERSISTENT_STORAGE_TEXT);
+                WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE);
     }
 
     /* initialize the modes */
@@ -1664,28 +1697,6 @@ void vb_gui_style_update(Client *c, const char *setting_name_new, const char *se
 
     /* Mapping from vimb config setting name to css style sheet string */
     static const char *setting_style_map[][2] = {
-#ifdef FEATURE_GUI_STYLE_VIMB2_COMPAT
-        {"completion-bg-active",        " #completion:selected{background-color:%s}"},
-        {"completion-bg-normal",        " #completion{background-color:%s}"},
-        {"completion-fg-active",        " #completion:selected{color:%s}"},
-        {"completion-fg-normal",        " #completion{color:%s}"},
-        {"completion-font",             " #completion{font:%s}"},
-        {"input-bg-error",              " #input.error{background-color:%s}"},
-        {"input-bg-normal",             " #input{background-color:%s}"},
-        {"input-fg-error",              " #input.error{color:%s}"},
-        {"input-fg-normal",             " #input{color:%s}"},
-        {"input-font-error",            " #input.error{font:%s}"},
-        {"input-font-normal",           " #input{font:%s}"},
-        {"status-color-bg",             " #statusbar{background-color:%s}"},
-        {"status-color-fg",             " #statusbar{color:%s}"},
-        {"status-font",                 " #statusbar{font:%s}"},
-        {"status-ssl-color-bg",         " #statusbar.secure{background-color:%s}"},
-        {"status-ssl-color-fg",         " #statusbar.secure{color:%s}"},
-        {"status-ssl-font",             " #statusbar.secure{font:%s}"},
-        {"status-sslinvalid-color-bg",  " #statusbar.unsecure{background-color:%s}"},
-        {"status-sslinvalid-color-fg",  " #statusbar.unsecure{color:%s}"},
-        {"status-sslinvalid-font",      " #statusbar.unsecure{font:%s}"},
-#else /* vimb3 gui style settings */
         {"completion-css",              " #completion{%s}"},
         {"completion-hover-css",        " #completion:hover{%s}"},
         {"completion-selected-css",     " #completion:selected{%s}"},
@@ -1694,8 +1705,6 @@ void vb_gui_style_update(Client *c, const char *setting_name_new, const char *se
         {"status-css",                  " #statusbar{%s}"},
         {"status-ssl-css",              " #statusbar.secure{%s}"},
         {"status-ssl-invalid-css",      " #statusbar.unsecure{%s}"},
-#endif /* FEATURE_GUI_STYLE_VIMB2_COMPAT */
-
         {0, 0},
     };
 
@@ -1794,6 +1803,7 @@ static WebKitWebView *webview_new(Client *c, WebKitWebView *webview)
         "signal::notify::estimated-load-progress", G_CALLBACK(on_webview_notify_estimated_load_progress), c,
         "signal::notify::title", G_CALLBACK(on_webview_notify_title), c,
         "signal::notify::uri", G_CALLBACK(on_webview_notify_uri), c,
+        "signal::permission-request", G_CALLBACK(on_permission_request), c,
         "signal::ready-to-show", G_CALLBACK(on_webview_ready_to_show), c,
         "signal::web-process-crashed", G_CALLBACK(on_webview_web_process_crashed), c,
         "signal::authenticate", G_CALLBACK(on_webview_authenticate), c,
@@ -1808,6 +1818,46 @@ static WebKitWebView *webview_new(Client *c, WebKitWebView *webview)
     g_signal_connect(ucm, "script-message-received::focus", G_CALLBACK(on_script_message_focus), NULL);
 
     return new;
+}
+
+static void on_counted_matches(WebKitFindController *finder, guint count, Client *c)
+{
+    c->state.search.matches = count;
+    vb_statusbar_update(c);
+}
+
+static gboolean on_permission_request(WebKitWebView *webview,
+        WebKitPermissionRequest *request, Client *c)
+{
+    GtkWidget *dialog;
+    int result;
+    char *msg = NULL;
+
+    if (WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(request)) {
+        msg = "Page wants to request your location";
+    } else if (WEBKIT_IS_USER_MEDIA_PERMISSION_REQUEST(request)) {
+        if (webkit_user_media_permission_is_for_audio_device(WEBKIT_USER_MEDIA_PERMISSION_REQUEST(request))) {
+            msg = "Page wants to access the microphone";
+        } else if (webkit_user_media_permission_is_for_video_device(WEBKIT_USER_MEDIA_PERMISSION_REQUEST(request))) {
+            msg = "Page wants to access you webcam";
+        }
+    } else {
+        return FALSE;
+    }
+
+    dialog = gtk_message_dialog_new(GTK_WINDOW(c->window), GTK_DIALOG_MODAL,
+            GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, msg);
+
+    gtk_widget_show(dialog);
+    result = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (GTK_RESPONSE_YES == result) {
+        webkit_permission_request_allow(request);
+    } else {
+        webkit_permission_request_deny(request);
+    }
+    gtk_widget_destroy(dialog);
+
+    return TRUE;
 }
 
 static void on_script_message_focus(WebKitUserContentManager *manager,

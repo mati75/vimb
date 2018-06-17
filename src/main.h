@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
 #include <gtk/gtkx.h>
 #include <stdio.h>
 #include <webkit2/webkit2.h>
+#include "shortcut.h"
+#include "handler.h"
 
 #include "config.h"
 
@@ -101,10 +103,6 @@ typedef enum {
 } VbInputType;
 
 enum {
-    COMP_NORMAL, COMP_ACTIVE, COMP_LAST
-};
-
-enum {
     FILES_BOOKMARK,
     FILES_CLOSED,
     FILES_COMMAND,
@@ -119,6 +117,7 @@ enum {
 };
 
 typedef struct Client Client;
+typedef struct State State;
 typedef struct Map Map;
 typedef struct Mode Mode;
 typedef struct Arg Arg;
@@ -220,11 +219,13 @@ struct Client {
     /* WebKitWebContext    *webctx; */          /* not used atm, use webkit_web_context_get_default() instead */
     GtkWidget           *window, *input;
     WebKitWebView       *webview;
+    WebKitFindController *finder;
     WebKitWebInspector  *inspector;
     guint64             page_id;                /* page id of the webview */
     GtkTextBuffer       *buffer;
     GDBusProxy          *dbusproxy;
     GDBusServer         *dbusserver;
+    Handler             *handler;               /* the protocoll handlers */
     struct {
         /* TODO split in global setting definitions and set values on a per
          * client base. */
@@ -232,11 +233,8 @@ struct Client {
         guint                   scrollstep;
         gboolean                input_autohide;
         gboolean                incsearch;
-        /* completion */
-        GdkRGBA                 comp_fg[COMP_LAST];
-        GdkRGBA                 comp_bg[COMP_LAST];
-        PangoFontDescription    *comp_font;
         guint                   default_zoom;   /* default zoom level in percent */
+        Shortcut                *shortcuts;
     } config;
     struct {
         GSList      *list;
@@ -247,13 +245,6 @@ struct Client {
         char        showcmd[SHOWCMD_LEN + 1];   /* buffer to show ambiguous key sequence */
         guint       timeoutlen;                 /* timeout for ambiguous mappings */
     } map;
-    struct {
-        GHashTable  *table;
-        char        *fallback;                  /* default shortcut to use if none given in request */
-    } shortcut;
-    struct {
-        GHashTable *table;                      /* holds the protocol handlers */
-    } handlers;
     struct {
         struct AuGroup *curgroup;
         GSList         *groups;

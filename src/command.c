@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,19 +42,15 @@
  */
 gboolean command_search(Client *c, const Arg *arg, bool commit)
 {
-    WebKitFindController *fc;
     const char *query;
     guint count;
     int direction;
 
-    fc = webkit_web_view_get_find_controller(c->webview);
-
     g_assert(c);
     g_assert(arg);
-    g_assert(fc);
 
     if (arg->i == 0) {
-        webkit_find_controller_search_finish(fc);
+        webkit_find_controller_search_finish(c->finder);
 
         /* Clear the input only if the search is active and commit flag is
          * set. This allows us to stop searching with and without cleaning
@@ -63,7 +59,7 @@ gboolean command_search(Client *c, const Arg *arg, bool commit)
             vb_echo(c, MSG_NORMAL, FALSE, "");
         }
 
-        c->state.search.active = FALSE;
+        c->state.search.active  = FALSE;
         c->state.search.matches = 0;
 
         vb_statusbar_update(c);
@@ -100,8 +96,8 @@ gboolean command_search(Client *c, const Arg *arg, bool commit)
          * on the page. Without this workaround the first selected match
          * depends on the most recent selection or caret position (even when
          * caret browsing is disabled). */
-        if(commit) {
-            webkit_find_controller_search(fc, "", WEBKIT_FIND_OPTIONS_NONE, G_MAXUINT);
+        if (commit) {
+            webkit_find_controller_search(c->finder, "", WEBKIT_FIND_OPTIONS_NONE, G_MAXUINT);
         }
 
         if (!c->state.search.last_query) {
@@ -111,15 +107,18 @@ gboolean command_search(Client *c, const Arg *arg, bool commit)
             c->state.search.last_query = g_strdup(query);
         }
 
-        webkit_find_controller_search(fc, query,
+        webkit_find_controller_count_matches(c->finder, query,
+                WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
+                WEBKIT_FIND_OPTIONS_WRAP_AROUND,
+                G_MAXUINT);
+        webkit_find_controller_search(c->finder, query,
                 WEBKIT_FIND_OPTIONS_CASE_INSENSITIVE |
                 WEBKIT_FIND_OPTIONS_WRAP_AROUND |
                 (direction > 0 ?  WEBKIT_FIND_OPTIONS_NONE : WEBKIT_FIND_OPTIONS_BACKWARDS),
                 G_MAXUINT);
 
-        c->state.search.active = TRUE;
+        c->state.search.active    = TRUE;
         c->state.search.direction = direction;
-        /* TODO get the number of matches */
 
         /* Skip first search because the first match is already
          * highlighted on search start. */
@@ -130,11 +129,11 @@ gboolean command_search(Client *c, const Arg *arg, bool commit)
     if (c->state.search.active) {
         if (arg->i * c->state.search.direction > 0) {
             while (count--) {
-                webkit_find_controller_search_next(fc);
+                webkit_find_controller_search_next(c->finder);
             }
         } else {
             while (count--) {
-                webkit_find_controller_search_previous(fc);
+                webkit_find_controller_search_previous(c->finder);
             }
         }
     }

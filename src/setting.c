@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,6 +66,7 @@ static int tls_policy(Client *c, const char *name, DataType type, void *value, v
 static int webkit(Client *c, const char *name, DataType type, void *value, void *data);
 static int webkit_spell_checking(Client *c, const char *name, DataType type, void *value, void *data);
 static int webkit_spell_checking_language(Client *c, const char *name, DataType type, void *value, void *data);
+static int window_decorate(Client *c, const char *name, DataType type, void *value, void *data);
 
 extern struct Vimb vb;
 
@@ -145,6 +146,7 @@ void setting_init(Client *c)
     setting_add(c, "timeoutlen", TYPE_INTEGER, &i, internal, 0, &c->map.timeoutlen);
     setting_add(c, "input-autohide", TYPE_BOOLEAN, &off, input_autohide, 0, &c->config.input_autohide);
     setting_add(c, "fullscreen", TYPE_BOOLEAN, &off, fullscreen, 0, NULL);
+    setting_add(c, "show-titlebar", TYPE_BOOLEAN, &on, window_decorate, 0, NULL);
     i = 100;
     setting_add(c, "default-zoom", TYPE_INTEGER, &i, default_zoom, 0, NULL);
     setting_add(c, "download-path", TYPE_CHAR, &"~/", NULL, 0, NULL);
@@ -156,30 +158,6 @@ void setting_init(Client *c)
     setting_add(c, "spell-checking", TYPE_BOOLEAN, &off, webkit_spell_checking, 0, NULL);
     setting_add(c, "spell-checking-languages", TYPE_CHAR, &"en_US", webkit_spell_checking_language, FLAG_LIST|FLAG_NODUP, NULL);
 
-
-#ifdef FEATURE_GUI_STYLE_VIMB2_COMPAT
-    /* gui style settings vimb2 compatibility */
-    setting_add(c, "completion-bg-active", TYPE_CHAR, &"#888", gui_style, 0, NULL);
-    setting_add(c, "completion-bg-normal", TYPE_CHAR, &"#656565", gui_style, 0, NULL);
-    setting_add(c, "completion-fg-active", TYPE_CHAR, &"#f6f3e8", gui_style, 0, NULL);
-    setting_add(c, "completion-fg-normal", TYPE_CHAR, &"#fff", gui_style, 0, NULL);
-    setting_add(c, "completion-font", TYPE_CHAR, &"" SETTING_GUI_FONT_NORMAL, gui_style, 0, NULL);
-    setting_add(c, "input-bg-error", TYPE_CHAR, &"#f77", gui_style, 0, NULL);
-    setting_add(c, "input-bg-normal", TYPE_CHAR, &"#fff", gui_style, 0, NULL);
-    setting_add(c, "input-fg-error", TYPE_CHAR, &"#000", gui_style, 0, NULL);
-    setting_add(c, "input-fg-normal", TYPE_CHAR, &"#000", gui_style, 0, NULL);
-    setting_add(c, "input-font-error", TYPE_CHAR, &"" SETTING_GUI_FONT_EMPH, gui_style, 0, NULL);
-    setting_add(c, "input-font-normal", TYPE_CHAR, &"" SETTING_GUI_FONT_NORMAL, gui_style, 0, NULL);
-    setting_add(c, "status-color-bg", TYPE_CHAR, &"#000", gui_style, 0, NULL);
-    setting_add(c, "status-color-fg", TYPE_CHAR, &"#fff", gui_style, 0, NULL);
-    setting_add(c, "status-font", TYPE_CHAR, &"" SETTING_GUI_FONT_EMPH, gui_style, 0, NULL);
-    setting_add(c, "status-ssl-color-bg", TYPE_CHAR, &"#95e454", gui_style, 0, NULL);
-    setting_add(c, "status-ssl-color-fg", TYPE_CHAR, &"#000", gui_style, 0, NULL);
-    setting_add(c, "status-ssl-font", TYPE_CHAR, &"", gui_style, 0, NULL);
-    setting_add(c, "status-sslinvalid-color-bg", TYPE_CHAR, &"#f77", gui_style, 0, NULL);
-    setting_add(c, "status-sslinvalid-color-fg", TYPE_CHAR, &"#000", gui_style, 0, NULL);
-    setting_add(c, "status-sslinvalid-font", TYPE_CHAR, &"" SETTING_GUI_FONT_EMPH, gui_style, 0, NULL);
-#else
     /* gui style settings vimb3 */
     setting_add(c, "completion-css", TYPE_CHAR, &"color:#fff;background-color:#656565;font:" SETTING_GUI_FONT_NORMAL, gui_style, 0, NULL);
     setting_add(c, "completion-hover-css", TYPE_CHAR, &"background-color:#777;", gui_style, 0, NULL);
@@ -189,13 +167,11 @@ void setting_init(Client *c)
     setting_add(c, "status-css", TYPE_CHAR, &"color:#fff;background-color:#000;font:" SETTING_GUI_FONT_EMPH, gui_style, 0, NULL);
     setting_add(c, "status-ssl-css", TYPE_CHAR, &"background-color:#95e454;color:#000;", gui_style, 0, NULL);
     setting_add(c, "status-ssl-invalid-css", TYPE_CHAR, &"background-color:#f77;color:#000;", gui_style, 0, NULL);
-#endif /* FEATURE_GUI_STYLE_VIMB2_COMPAT */
 
     /* initialize the shortcuts and set the default shortcuts */
-    shortcut_init(c);
-    shortcut_add(c, "dl", "https://duckduckgo.com/html/?q=$0");
-    shortcut_add(c, "dd", "https://duckduckgo.com/?q=$0");
-    shortcut_set_default(c, "dl");
+    shortcut_add(c->config.shortcuts, "dl", "https://duckduckgo.com/html/?q=$0");
+    shortcut_add(c->config.shortcuts, "dd", "https://duckduckgo.com/?q=$0");
+    shortcut_set_default(c->config.shortcuts, "dl");
 }
 
 VbCmdResult setting_run(Client *c, char *name, const char *param)
@@ -288,10 +264,33 @@ VbCmdResult setting_run(Client *c, char *name, const char *param)
 
 gboolean setting_fill_completion(Client *c, GtkListStore *store, const char *input)
 {
-    GList *src = g_hash_table_get_keys(c->config.settings);
-    gboolean found = completion_fill(store, input, src);
-    g_list_free(src);
+    GtkTreeIter iter;
+    gboolean found = FALSE;
+    GList *src     = g_hash_table_get_keys(c->config.settings);
 
+    /* If no filter input given - copy all entries into the data store. */
+    if (!input || !*input) {
+        for (GList *l = src; l; l = l->next) {
+            gtk_list_store_append(store, &iter);
+            gtk_list_store_set(store, &iter, COMPLETION_STORE_FIRST, l->data, -1);
+            found = TRUE;
+        }
+        g_list_free(src);
+        return found;
+    }
+
+    /* If filter input is given - copy matching list entires into data store.
+     * Strings are compared by prefix matching. */
+    for (GList *l = src; l; l = l->next) {
+        char *value = (char*)l->data;
+        if (g_str_has_prefix(value, input)) {
+            gtk_list_store_append(store, &iter);
+            gtk_list_store_set(store, &iter, COMPLETION_STORE_FIRST, l->data, -1);
+            found = TRUE;
+        }
+    }
+
+    g_list_free(src);
     return found;
 }
 
@@ -301,7 +300,6 @@ void setting_cleanup(Client *c)
         g_hash_table_destroy(c->config.settings);
         c->config.settings = NULL;
     }
-    shortcut_cleanup(c);
 }
 
 static int setting_set_value(Client *c, Setting *prop, void *value, SettingType type)
@@ -536,6 +534,17 @@ static int fullscreen(Client *c, const char *name, DataType type, void *value, v
     } else {
         gtk_window_unfullscreen(GTK_WINDOW(c->window));
     }
+
+    return CMD_SUCCESS;
+}
+
+/* This needs to be called before the window is shown for the best chance of
+ * success, but it may be called at any time.
+ * Currently the setting file is read after the window has been shown, which
+ * might mean the titlebar isn't hidden on certain environments. */
+static int window_decorate(Client *c, const char *name, DataType type, void *value, void *data)
+{
+    gtk_window_set_decorated(GTK_WINDOW(c->window), *(gboolean*)value);
 
     return CMD_SUCCESS;
 }

@@ -1,7 +1,7 @@
 /**
  * vimb - a webkit based vim like browser.
  *
- * Copyright (C) 2012-2017 Daniel Carl
+ * Copyright (C) 2012-2018 Daniel Carl
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <string.h>
 
 #include "ascii.h"
 #include "config.h"
@@ -26,11 +27,14 @@
 #include "main.h"
 #include "normal.h"
 #include "util.h"
+#include "scripts/scripts.h"
 #include "ext-proxy.h"
 
 typedef struct {
     Client *c;
     char   *file;
+    char   *element_id;
+    unsigned long element_map_key;
 } EditorData;
 
 static void resume_editor(GPid pid, int status, EditorData *data);
@@ -106,12 +110,16 @@ VbResult input_keypress(Client *c, int key)
 
 VbResult input_open_editor(Client *c)
 {
+    static unsigned long element_map_key = 0;
+    char *element_id = NULL, *command = NULL;
     char **argv, *file_path = NULL;
-    const char *text = NULL, *editor_command;
+    const char *text = NULL, *id = NULL, *editor_command;
     int argc;
     GPid pid;
     gboolean success;
     GVariant *jsreturn;
+    GVariant *idreturn;
+    GError *error = NULL;
 
     g_assert(c);
 
@@ -130,49 +138,69 @@ VbResult input_open_editor(Client *c)
         return RESULT_ERROR;
     }
 
+    idreturn = ext_proxy_eval_script_sync(c, "vimb_input_mode_element.id");
+    g_variant_get(idreturn, "(bs)", &success, &id);
+
+    /* Special case: the input element does not have an id assigned to it */
+    if (!success || !*id) {
+        char *js_command = g_strdup_printf(JS_SET_EDITOR_MAP_ELEMENT, ++element_map_key);
+        ext_proxy_eval_script(c, js_command, NULL);
+        g_free(js_command);
+    } else {
+        element_id = g_strdup(id);
+    }
+
     /* create a temp file to pass text to and from editor */
     if (!util_create_tmp_file(text, &file_path)) {
-        return RESULT_ERROR;
+        goto error;
     }
 
     /* spawn editor */
-    char* command = g_strdup_printf(editor_command, file_path);
+    command = g_strdup_printf(editor_command, file_path);
     if (!g_shell_parse_argv(command, &argc, &argv, NULL)) {
         g_critical("Could not parse editor-command '%s'", command);
-        g_free(command);
-        return RESULT_ERROR;
+        goto error;
     }
-    g_free(command);
 
     success = g_spawn_async(
         NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD,
-        NULL, NULL, &pid, NULL
+        NULL, NULL, &pid, &error
     );
-    g_strfreev(argv);
 
     if (!success) {
-        unlink(file_path);
-        g_free(file_path);
-        g_warning("Could not spawn editor-command");
-        return RESULT_ERROR;
+        g_warning("Could not spawn editor-command: %s", error->message);
+        g_error_free(error);
+        goto error;
     }
+    g_strfreev(argv);
 
     /* disable the active element */
     ext_proxy_eval_script(c, "vimb_input_mode_element.disabled=true", NULL);
 
     /* watch the editor process */
     EditorData *data = g_slice_new0(EditorData);
-    data->file = file_path;
-    data->c    = c;
+    data->file            = file_path;
+    data->c               = c;
+    data->element_id      = element_id;
+    data->element_map_key = element_map_key;
+
     g_child_watch_add(pid, (GChildWatchFunc)resume_editor, data);
 
     return RESULT_COMPLETE;
+
+error:
+    unlink(file_path);
+    g_free(file_path);
+    g_strfreev(argv);
+    g_free(element_id);
+    return RESULT_ERROR;
 }
 
 static void resume_editor(GPid pid, int status, EditorData *data)
 {
-    char *text, *tmp;
+    char *text, *escaped;
     char *jscode;
+    char *jscode_enable;
 
     g_assert(pid);
     g_assert(data);
@@ -184,69 +212,36 @@ static void resume_editor(GPid pid, int status, EditorData *data)
         text = util_get_file_contents(data->file, NULL);
 
         if (text) {
-            /* escape the text to form a valid JS string */
-            /* TODO: could go into util.c maybe */
-            struct search_replace {
-                const char* search;
-                const char* replace;
-            } escapes[] = {
-                {"\x01", ""},
-                {"\x02", ""},
-                {"\x03", ""},
-                {"\x04", ""},
-                {"\x05", ""},
-                {"\x06", ""},
-                {"\a", ""},
-                {"\b", ""},
-                {"\t", "\\t"},
-                {"\n", "\\n"},
-                {"\v", ""},
-                {"\f", ""},
-                {"\r", ""},
-                {"\x0E", ""},
-                {"\x0F", ""},
-                {"\x10", ""},
-                {"\x11", ""},
-                {"\x12", ""},
-                {"\x13", ""},
-                {"\x14", ""},
-                {"\x15", ""},
-                {"\x16", ""},
-                {"\x17", ""},
-                {"\x18", ""},
-                {"\x19", ""},
-                {"\x1A", ""},
-                {"\x1B", ""},
-                {"\x1C", ""},
-                {"\x1D", ""},
-                {"\x1E", ""},
-                {"\x1F", ""},
-                {"\"", "\\\""},
-                {"\x7F", ""},
-                {NULL, NULL},
-            };
-
-            for(struct search_replace *i = escapes; i->search; i++) {
-                tmp = util_str_replace(i->search, i->replace, text);
-                g_free(text);
-                text = tmp;
-            }
+            escaped = util_strescape(text, NULL);
 
             /* put the text back into the element */
-            jscode = g_strdup_printf("vimb_input_mode_element.value=\"%s\"", text);
+            if (data->element_id && strlen(data->element_id) > 0) {
+                jscode = g_strdup_printf("document.getElementById(\"%s\").value=\"%s\"", data->element_id, escaped);
+            } else {
+                jscode = g_strdup_printf("vimb_editor_map.get(\"%lu\").value=\"%s\"", data->element_map_key, escaped);
+            }
+
             ext_proxy_eval_script(data->c, jscode, NULL);
 
             g_free(jscode);
+            g_free(escaped);
             g_free(text);
         }
     }
 
-    ext_proxy_eval_script(data->c,
-            "vimb_input_mode_element.disabled=false;"
-            "vimb_input_mode_element.focus()", NULL);
+    if (data->element_id && strlen(data->element_id) > 0) {
+        jscode_enable = g_strdup_printf(JS_FOCUS_ELEMENT_BY_ID,
+                data->element_id, data->element_id);
+    } else {
+        jscode_enable = g_strdup_printf(JS_FOCUS_EDITOR_MAP_ELEMENT,
+                data->element_map_key, data->element_map_key);
+    }
+    ext_proxy_eval_script(data->c, jscode_enable, NULL);
+    g_free(jscode_enable);
 
     g_unlink(data->file);
     g_free(data->file);
+    g_free(data->element_id);
     g_slice_free(EditorData, data);
     g_spawn_close_pid(pid);
 }
