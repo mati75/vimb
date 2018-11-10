@@ -74,6 +74,7 @@ static VbResult normal_search(Client *c, const NormalCmdInfo *info);
 static VbResult normal_search_selection(Client *c, const NormalCmdInfo *info);
 static VbResult normal_view_inspector(Client *c, const NormalCmdInfo *info);
 static VbResult normal_view_source(Client *c, const NormalCmdInfo *info);
+static void normal_view_source_loaded(WebKitWebResource *resource, GAsyncResult *res, Client *c);
 static VbResult normal_yank(Client *c, const NormalCmdInfo *info);
 static VbResult normal_zoom(Client *c, const NormalCmdInfo *info);
 
@@ -446,7 +447,7 @@ static VbResult normal_g_cmd(Client *c, const NormalCmdInfo *info)
             return normal_view_inspector(c, info);
 
         case 'f':
-            normal_view_source(c, info);
+            return normal_view_source(c, info);
 
         case 'g':
             return normal_scroll(c, info);
@@ -521,7 +522,37 @@ static VbResult normal_input_open(Client *c, const NormalCmdInfo *info)
 
 static VbResult normal_mark(Client *c, const NormalCmdInfo *info)
 {
-    /* TODO implement setting of marks - we need to get the position in the pagee from the Webextension */
+    glong current;
+    char *js, *mark;
+    int idx;
+
+    /* check if the second char is a valid mark char */
+    if (!(mark = strchr(MARK_CHARS, info->key2))) {
+        return RESULT_ERROR;
+    }
+
+    /* get the index of the mark char */
+    idx = mark - MARK_CHARS;
+
+    if ('m' == info->key) {
+        c->state.marks[idx] = c->state.scroll_top;
+    } else {
+        /* check if the mark was set */
+        if ((int)(c->state.marks[idx] - .5) < 0) {
+            return RESULT_ERROR;
+        }
+
+        current = c->state.scroll_top;
+
+        /* jump to the location */
+        js = g_strdup_printf("window.scroll(window.screenLeft,%ld);", c->state.marks[idx]);
+        ext_proxy_eval_script(c, js, NULL);
+        g_free(js);
+
+        /* save previous adjust as last position */
+        c->state.marks[MARK_TICK] = current;
+    }
+
     return RESULT_COMPLETE;
 }
 
@@ -713,8 +744,32 @@ static VbResult normal_view_inspector(Client *c, const NormalCmdInfo *info)
 
 static VbResult normal_view_source(Client *c, const NormalCmdInfo *info)
 {
-    /* TODO the source mode isn't supported anymore use external editor for this */
+    WebKitWebResource *resource;
+
+    if ((resource = webkit_web_view_get_main_resource(c->webview)) == NULL) {
+        return RESULT_ERROR;
+    }
+
+    webkit_web_resource_get_data(resource, NULL,
+            (GAsyncReadyCallback)normal_view_source_loaded, c);
+
     return RESULT_COMPLETE;
+}
+
+static void normal_view_source_loaded(WebKitWebResource *resource,
+    GAsyncResult *res, Client *c)
+{
+    gsize length;
+    guchar *data = NULL;
+    char *text = NULL;
+
+    data = webkit_web_resource_get_data_finish(resource, res, &length, NULL);
+    if (data) {
+        text = g_strndup(data, length);
+        command_spawn_editor(c, &((Arg){0, (char *)text}), NULL, NULL);
+        g_free(data);
+        g_free(text);
+    }
 }
 
 static VbResult normal_yank(Client *c, const NormalCmdInfo *info)

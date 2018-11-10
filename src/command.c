@@ -30,7 +30,17 @@
 #endif
 #include "command.h"
 #include "history.h"
+#include "util.h"
 #include "main.h"
+
+typedef struct {
+    Client   *c;
+    char     *file;
+    gpointer *data;
+    PostEditFunc func;
+} EditorData;
+
+static void resume_editor(GPid pid, int status, gpointer edata);
 
 /**
  * Start/perform/stop searching in webview.
@@ -260,3 +270,97 @@ gboolean command_queue(Client *c, const Arg *arg)
     return res;
 }
 #endif
+
+/**
+ * Asynchronously spawn editor.
+ *
+ * @posteditfunc: If not NULL posteditfunc is called and the following arguments
+ *                are passed:
+ *                 - const char *text: text contents of the temporary file (or
+ *                                     NULL)
+ *                 - Client *c: current client passed to command_spawn_editor()
+ *                 - gpointer data: pointer that can be used for any local
+ *                                  purposes
+ * @data:         Generic pointer used to pass data to posteditfunc
+ */
+gboolean command_spawn_editor(Client *c, const Arg *arg,
+    PostEditFunc posteditfunc, gpointer data)
+{
+    char **argv = NULL, *file_path = NULL;
+    char *command = NULL;
+    int argc;
+    GPid pid;
+    gboolean success, result;
+    char *editor_command;
+    GError *error = NULL;
+
+    /* get the editor command */
+    editor_command = GET_CHAR(c, "editor-command");
+    if (!editor_command || !*editor_command) {
+        vb_echo(c, MSG_ERROR, TRUE, "No editor-command configured");
+        return FALSE;
+    }
+
+    /* create a temp file to pass text in/to editor */
+    if (!util_create_tmp_file(arg->s, &file_path)) {
+        return FALSE;
+    }
+
+    /* spawn editor */
+    command = g_strdup_printf(editor_command, file_path);
+    if (g_shell_parse_argv(command, &argc, &argv, NULL)) {
+        success = g_spawn_async(
+            NULL, argv, NULL, G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD,
+            NULL, NULL, &pid, &error
+        );
+        g_strfreev(argv);
+
+        if (success) {
+            EditorData *ed = g_slice_new0(EditorData);
+            ed->file = file_path;
+            ed->c    = c;
+            ed->data = data;
+            ed->func = posteditfunc;
+
+            g_child_watch_add(pid, resume_editor, ed);
+
+            result = TRUE;
+        } else {
+            g_warning("Could not spawn editor-command: %s", error->message);
+            g_error_free(error);
+            result = FALSE;
+        }
+    } else {
+        g_critical("Could not parse editor-command '%s'", command);
+        result = FALSE;
+    }
+    g_free(command);
+
+    if (!result) {
+        unlink(file_path);
+        g_free(file_path);
+    }
+    return result;
+}
+
+static void resume_editor(GPid pid, int status, gpointer edata)
+{
+    char *text = NULL;
+    EditorData *ed = edata;
+
+    g_assert(pid);
+    g_assert(ed);
+    g_assert(ed->c);
+    g_assert(ed->file);
+
+    if (ed->func != NULL) {
+        text = util_get_file_contents(ed->file, NULL);
+        ed->func(text, ed->c, ed->data);
+        g_free(text);
+    }
+
+    unlink(ed->file);
+    g_free(ed->file);
+    g_slice_free(EditorData, ed);
+    g_spawn_close_pid(pid);
+}

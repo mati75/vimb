@@ -21,11 +21,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <JavaScriptCore/JavaScript.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/file.h>
+#include <unistd.h>
 
 #include "ascii.h"
 #include "completion.h"
@@ -104,7 +106,7 @@ void util_cleanup(void)
 gboolean util_create_dir_if_not_exists(const char *dirpath)
 {
     if (g_mkdir_with_parents(dirpath, 0755) == -1) {
-        g_critical("Could not create directory '%s': %s", dirpath, strerror(errno));
+        g_critical("Could not create directory '%s': %s", dirpath, g_strerror(errno));
 
         return FALSE;
     }
@@ -129,6 +131,11 @@ gboolean util_create_tmp_file(const char *content, char **file)
         g_critical("Could not create temp file %s", *file);
         g_free(*file);
         return FALSE;
+    }
+
+    if (content == NULL) {
+        close(fp);
+        return TRUE;
     }
 
     len = strlen(content);
@@ -275,7 +282,7 @@ void util_file_prepend_line(const char *file, const char *line,
         }
         g_strfreev(lines);
     }
-    g_file_set_contents(file, new_content->str, -1, NULL);
+    util_file_set_content(file, new_content->str);
     g_string_free(new_content, TRUE);
 }
 
@@ -308,7 +315,7 @@ char *util_file_pop_line(const char *file, int *item_count)
             /* minus one for last empty item and one for popped item */
             count = len - 2;
             new   = g_strjoinv("\n", lines + 1);
-            g_file_set_contents(file, new, -1, NULL);
+            util_file_set_content(file, new);
             g_free(new);
         }
         g_strfreev(lines);
@@ -351,6 +358,78 @@ char *util_get_file_contents(const char *filename, gsize *length)
 }
 
 /**
+ * Atomicly writes contents to given file.
+ * Returns TRUE on success, FALSE otherwise.
+ */
+gboolean util_file_set_content(const char *file, const char *contents)
+{
+    gboolean retval = FALSE;
+    char *tmp_name;
+    int fd, mode;
+    gsize length;
+    struct stat st;
+
+    mode = 0600;
+    if (stat(file, &st) == 0) {
+        mode = st.st_mode;
+    }
+
+    /* Create a temporary file. */
+    tmp_name = g_strconcat(file, ".XXXXXX", NULL);
+    errno    = 0;
+    fd       = g_mkstemp_full(tmp_name, O_RDWR, mode);
+    length   = strlen(contents);
+
+    if (fd == -1) {
+        g_error("Failed to create file %s: %s", tmp_name, g_strerror(errno));
+
+        goto out;
+    }
+
+    /* Write the contents to the temporary file. */
+    while (length > 0) {
+        gssize s;
+        s = write(fd, contents, length);
+        if (s < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            g_error("Failed to write to file %s: write() failed: %s",
+                    tmp_name, g_strerror(errno));
+            close(fd);
+            g_unlink(tmp_name);
+
+            goto out;
+        }
+
+        g_assert (s <= length);
+
+        contents += s;
+        length   -= s;
+    }
+
+    if (!g_close(fd, NULL)) {
+        g_unlink(tmp_name);
+        goto out;
+    }
+
+    /* Atomic rename the temporary file into the destination file. */
+    if (g_rename(tmp_name, file) == -1) {
+        g_error("Failed to rename file %s to %s: g_rename() failed: %s",
+                tmp_name, file, g_strerror(errno));
+        g_unlink(tmp_name);
+        goto out;
+    }
+
+    retval = TRUE;
+
+out:
+    g_free(tmp_name);
+
+    return retval;
+}
+
+/**
  * Buil the path from given directory and filename and checks if the file
  * exists. If the file does not exists and the create option is not set, this
  * function returns NULL.
@@ -362,8 +441,9 @@ char *util_get_file_contents(const char *filename, gsize *length)
  * @dir:        Directory in which the file is searched.
  * @filename:   Filename to built the absolute path with.
  * @create:     If TRUE, the file is created if it does not already exist.
+ * @mode:       Mode (file permission as chmod(2)) used for the file when creating it.
  */
-char *util_get_filepath(const char *dir, const char *filename, gboolean create)
+char *util_get_filepath(const char *dir, const char *filename, gboolean create, int mode)
 {
     char *fullpath;
 
@@ -375,6 +455,7 @@ char *util_get_filepath(const char *dir, const char *filename, gboolean create)
     } else if (create) {
         /* If create option was given - create the file. */
         fclose(fopen(fullpath, "a"));
+        g_chmod(fullpath, mode);
         return fullpath;
     }
 
@@ -601,6 +682,10 @@ double util_js_result_as_number(WebKitJavascriptResult *result)
  * from the start of the input and moves the input pointer to the first
  * not expanded char. If no expansion pattern was found, the first char is
  * appended to given GString.
+ *
+ * Please note that for a single ~, g_get_home_dir() is used and if a valid
+ * HOME environment variable is set it is preferred than passwd file.
+ * However, for ~user expansion the passwd file is always used.
  *
  * @input:     String pointer with the content to be parsed.
  * @str:       GString that will be filled with expanded content.

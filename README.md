@@ -1,5 +1,7 @@
 # Vimb - the Vim-like browser
 
+[![Build Status](https://api.travis-ci.com/fanglingsu/vimb.svg?branch=master)](https://travis-ci.com/fanglingsu/vimb)
+
 Vimb is a Vim-like web browser that is inspired by Pentadactyl and Vimprobable.
 The goal of Vimb is to build a completely keyboard-driven, efficient and
 pleasurable browsing-experience with low memory and CPU usage that is
@@ -21,14 +23,17 @@ the project page of [Vimb][].
 - user defined URL-shortcuts with placeholders
 - read it later queue to collect URIs for later use
 - multiple yank/paste registers
+- Vim like autocmd - execute commands automatically after an event on specific URIs
 
 ## Packages
 
 - Arch Linux: [aur/vimb][], [aur/vimb-git][]
 - Gentoo: [gentoo-git][], [gentoo][]
+- Slackware: [slackbuild/vimb][]
 
 ## dependencies
 
+- gtk+-3.0
 - webkit2gtk-4.0 >= 2.8.x
 
 ## Install
@@ -44,10 +49,10 @@ Therefore, you should always compare your customised `config.h` with
 `config.h`.
 
 Run the following commands to compile and install Vimb (if necessary, the last one as
-root).
+root). If you want to change the `PREFIX`, note that it's required to give it on both stages, build and install.
 
-    make
-    make install
+    make PREFIX=/usr
+    make PREFIX=/usr install
 
 To run vimb without installation for testing it out use the 'runsandbox' make
 target.
@@ -69,9 +74,16 @@ target.
 
 Information about the license are found in the file LICENSE.
 
+## about
+
+- https://en.wikipedia.org/wiki/Vimb
+- http://thedarnedestthing.com/vimb
+- https://blog.jeaye.com/2015/08/23/vimb/
+
 [aur/vimb]:          https://aur.archlinux.org/packages/vimb
 [aur/vimb-git]:      https://aur.archlinux.org/packages/vimb-git
 [gentoo-git]:        https://github.com/tharvik/overlay/tree/master/www-client/vimb
 [gentoo]:            https://github.com/hsoft/portage-overlay/tree/master/www-client/vimb
 [vimb]:              https://fanglingsu.github.io/vimb/ "Vimb - Vim like browser project page"
 [mail]:              https://lists.sourceforge.net/lists/listinfo/vimb-users "vimb - mailing list"
+[slackbuild/vimb]:   https://slackbuilds.org/repository/14.2/network/vimb/

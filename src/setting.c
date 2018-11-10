@@ -81,6 +81,12 @@ void setting_init(Client *c)
     /* TODO use the real names for webkit settings */
     i = 14;
     setting_add(c, "accelerated-2d-canvas", TYPE_BOOLEAN, &off, webkit, 0, "enable-accelerated-2d-canvas");
+#if WEBKIT_CHECK_VERSION (2, 10, 0)
+    setting_add(c, "allow-file-access-from-file-urls", TYPE_BOOLEAN, &off, webkit, 0, "allow-file-access-from-file-urls");
+#endif
+#if WEBKIT_CHECK_VERSION (2, 14, 0)
+    setting_add(c, "allow-universal-access-from-file-urls", TYPE_BOOLEAN, &off, webkit, 0, "allow-universal-access-from-file-urls");
+#endif
     setting_add(c, "caret", TYPE_BOOLEAN, &off, webkit, 0, "enable-caret-browsing");
     setting_add(c, "cursiv-font", TYPE_CHAR, &"serif", webkit, 0, "cursive-font-family");
     setting_add(c, "default-charset", TYPE_CHAR, &"utf-8", webkit, 0, "default-charset");
@@ -694,7 +700,7 @@ static int user_style(Client *c, const char *name, DataType type, void *value, v
     /* Inject the global styles with author level to allow restyling by user
      * style sheets. */
     style = webkit_user_style_sheet_new(CSS_HINTS,
-            WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+            WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES,
             WEBKIT_USER_STYLE_LEVEL_AUTHOR, NULL, NULL);
     webkit_user_content_manager_add_style_sheet(ucm, style);
     webkit_user_style_sheet_unref(style);

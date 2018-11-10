@@ -1044,20 +1044,20 @@ static void on_webctx_init_web_extension(WebKitWebContext *webctx, gpointer data
     const char *name;
     GVariant *vdata;
 
-#ifdef DEBUG
+#if (CHECK_WEBEXTENSION_ON_STARTUP)
     char *extension = g_build_filename(EXTENSIONDIR,  "webext_main.so", NULL);
     if (!g_file_test(extension, G_FILE_TEST_IS_REGULAR)) {
-        g_warning("Cannot access web extension %s", extension);
+        g_error("Cannot access web extension %s", extension);
     }
     g_free(extension);
 #endif
 
-    /* Setup the extension directory. */
-    webkit_web_context_set_web_extensions_directory(webctx, EXTENSIONDIR);
-
     name  = ext_proxy_init();
     vdata = g_variant_new("(ms)", name);
     webkit_web_context_set_web_extensions_initialization_user_data(webctx, vdata);
+
+    /* Setup the extension directory. */
+    webkit_web_context_set_web_extensions_directory(webctx, EXTENSIONDIR);
 }
 
 /**
@@ -1637,19 +1637,19 @@ static void vimb_setup(void)
         vb.files[FILES_CONFIG] = g_strdup(rp);
         free(rp);
     } else {
-        vb.files[FILES_CONFIG] = util_get_filepath(path, "config", FALSE);
+        vb.files[FILES_CONFIG] = util_get_filepath(path, "config", FALSE, 0600);
     }
 
     /* Setup those files that are use multiple time during runtime */
-    vb.files[FILES_CLOSED]     = util_get_filepath(path, "closed", TRUE);
-    vb.files[FILES_COOKIE]     = util_get_filepath(path, "cookies.db", TRUE);
-    vb.files[FILES_USER_STYLE] = util_get_filepath(path, "style.css", FALSE);
-    vb.files[FILES_SCRIPT]     = util_get_filepath(path, "scripts.js", FALSE);
-    vb.files[FILES_HISTORY]    = util_get_filepath(path, "history", TRUE);
-    vb.files[FILES_COMMAND]    = util_get_filepath(path, "command", TRUE);
-    vb.files[FILES_BOOKMARK]   = util_get_filepath(path, "bookmark", TRUE);
-    vb.files[FILES_QUEUE]      = util_get_filepath(path, "queue", TRUE);
-    vb.files[FILES_SEARCH]     = util_get_filepath(path, "search", TRUE);
+    vb.files[FILES_CLOSED]     = util_get_filepath(path, "closed", TRUE, 0600);
+    vb.files[FILES_COOKIE]     = util_get_filepath(path, "cookies.db", TRUE, 0600);
+    vb.files[FILES_USER_STYLE] = util_get_filepath(path, "style.css", FALSE, 0600);
+    vb.files[FILES_SCRIPT]     = util_get_filepath(path, "scripts.js", FALSE, 0600);
+    vb.files[FILES_HISTORY]    = util_get_filepath(path, "history", TRUE, 0600);
+    vb.files[FILES_COMMAND]    = util_get_filepath(path, "command", TRUE, 0600);
+    vb.files[FILES_BOOKMARK]   = util_get_filepath(path, "bookmark", TRUE, 0600);
+    vb.files[FILES_QUEUE]      = util_get_filepath(path, "queue", TRUE, 0600);
+    vb.files[FILES_SEARCH]     = util_get_filepath(path, "search", TRUE, 0600);
     g_free(path);
 
     /* Use seperate rendering processed for the webview of the clients in the
@@ -1834,19 +1834,20 @@ static gboolean on_permission_request(WebKitWebView *webview,
     char *msg = NULL;
 
     if (WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(request)) {
-        msg = "Page wants to request your location";
+        msg = "request your location";
     } else if (WEBKIT_IS_USER_MEDIA_PERMISSION_REQUEST(request)) {
         if (webkit_user_media_permission_is_for_audio_device(WEBKIT_USER_MEDIA_PERMISSION_REQUEST(request))) {
-            msg = "Page wants to access the microphone";
+            msg = "access the microphone";
         } else if (webkit_user_media_permission_is_for_video_device(WEBKIT_USER_MEDIA_PERMISSION_REQUEST(request))) {
-            msg = "Page wants to access you webcam";
+            msg = "access you webcam";
         }
     } else {
         return FALSE;
     }
 
     dialog = gtk_message_dialog_new(GTK_WINDOW(c->window), GTK_DIALOG_MODAL,
-            GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, msg);
+            GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO, "Page wants to %s",
+            msg);
 
     gtk_widget_show(dialog);
     result = gtk_dialog_run(GTK_DIALOG(dialog));
