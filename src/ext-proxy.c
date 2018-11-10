@@ -95,23 +95,25 @@ out:
 static gboolean on_authorize_authenticated_peer(GDBusAuthObserver *observer,
         GIOStream *stream, GCredentials *credentials, gpointer data)
 {
-    static GCredentials *own_credentials = NULL;
-    GError *error = NULL;
+    gboolean authorized = FALSE;
 
-    if (!own_credentials) {
+    if (credentials) {
+        GCredentials *own_credentials;
+
+        GError *error   = NULL;
         own_credentials = g_credentials_new();
+        if (g_credentials_is_same_user(credentials, own_credentials, &error)) {
+            authorized = TRUE;
+        } else {
+            g_warning("Failed to authorize web extension connection: %s", error->message);
+            g_error_free(error);
+        }
+        g_object_unref(own_credentials);
+    } else {
+        g_warning ("No credentials received from web extension.\n");
     }
 
-    if (credentials && g_credentials_is_same_user(credentials, own_credentials, &error)) {
-        return TRUE;
-    }
-
-    if (error) {
-        g_warning("Failed to authorize web extension connection: %s", error->message);
-        g_error_free(error);
-    }
-
-    return FALSE;
+    return authorized;
 }
 
 static gboolean on_new_connection(GDBusServer *server,
@@ -178,16 +180,17 @@ static void on_vertical_scroll(GDBusConnection *connection,
         const char *interface_name, const char *signal_name,
         GVariant *parameters, gpointer data)
 {
-    glong max;
+    glong max, top;
     guint percent;
     guint64 pageid;
     Client *c;
 
-    g_variant_get(parameters, "(ttq)", &pageid, &max, &percent);
+    g_variant_get(parameters, "(ttqt)", &pageid, &max, &percent, &top);
     c = vb_get_client_for_page_id(pageid);
     if (c) {
         c->state.scroll_max     = max;
         c->state.scroll_percent = percent;
+        c->state.scroll_top     = top;
     }
 
     vb_statusbar_update(c);
@@ -195,11 +198,11 @@ static void on_vertical_scroll(GDBusConnection *connection,
 
 void ext_proxy_eval_script(Client *c, char *js, GAsyncReadyCallback callback)
 {
-	if (callback) {
+    if (callback) {
         dbus_call(c, "EvalJs", g_variant_new("(ts)", c->page_id, js), callback);
-	} else {
+    } else {
         dbus_call(c, "EvalJsNoResult", g_variant_new("(ts)", c->page_id, js), NULL);
-	}
+    }
 }
 
 GVariant *ext_proxy_eval_script_sync(Client *c, char *js)
@@ -224,6 +227,16 @@ void ext_proxy_set_header(Client *c, const char *headers)
     dbus_call(c, "SetHeaderSetting", g_variant_new("(s)", headers), NULL);
 }
 
+void ext_proxy_lock_input(Client *c, const char *element_id)
+{
+    dbus_call(c, "LockInput", g_variant_new("(ts)", c->page_id, element_id), NULL);
+}
+
+void ext_proxy_unlock_input(Client *c, const char *element_id)
+{
+    dbus_call(c, "UnlockInput", g_variant_new("(ts)", c->page_id, element_id), NULL);
+}
+
 /**
  * Call a dbus method.
  */
@@ -243,7 +256,7 @@ static void dbus_call(Client *c, const char *method, GVariant *param,
  */
 static GVariant *dbus_call_sync(Client *c, const char *method, GVariant *param)
 {
-	GVariant *result = NULL;
+    GVariant *result = NULL;
     GError *error = NULL;
 
     if (!c->dbusproxy) {
@@ -258,7 +271,7 @@ static GVariant *dbus_call_sync(Client *c, const char *method, GVariant *param)
         g_error_free(error);
     }
 
-	return result;
+    return result;
 }
 
 /**

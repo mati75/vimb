@@ -84,6 +84,9 @@ Mode.
 .B CTRL\-Z
 Switch Vimb into Pass-Through Mode.
 .TP
+.B gf
+Open the configured editor (`editor-command') with the current page's content.
+.TP
 .B gF
 Open the Web Inspector for the current page.
 .TP
@@ -189,6 +192,18 @@ Scroll page \fIN\fP steps down.
 .TP
 .BI [ N ]k
 Scroll page \fIN\fP steps up.
+.TP
+.BI m{ a-z }
+Set a page mark {\fIa-z\fP} at the current position on the page.
+Such set marks are only available on the current page;
+if the page is left, all marks will be removed.
+.TP
+.BI '{ a-z }
+Jump to the mark {\fIa-z\fP} on the current page.
+.TP
+.B ''
+Jumps to the position before the latest jump, or where the last "m'" command
+was given.
 .SS Hinting
 Hinting in Vimb is how you accomplish the tasks that you would do with the
 mouse in common mouse-driven browsers: open a URI, yank a URI, save a page and
@@ -373,6 +388,7 @@ Reset Zoom.
 Yank the URI or current page into register \fIx\fP and clipboard.
 .TP
 .BI [ \(dqx ]Y
+Yank the current selection into register x and clipboard.
 .SH COMMAND MODE
 Commands that are listed below are ex-commands like in Vim, that are typed
 into the inputbox (the command line of vimb).
@@ -958,8 +974,8 @@ will match all bookmarks that have tags starting with "tag".
 .PD
 .RE
 .TP
-.B boomark tags
-The boomark tag completion allows the insertion of already used bookmarks for the
+.B bookmark tags
+The bookmark tag completion allows the insertion of already used bookmarks for the
 `:bma ` commands.
 .TP
 .B search
@@ -967,12 +983,24 @@ The search completion allows a filtered list of already done searches.
 This completion starts by `/` or `?` in inputbox and performs a prefix
 comparison for further typed chars.
 .SH SETTINGS
-All settings listed below can be set with the `:set' command. See \fBSettings\fP under \fBCOMMAND MODE\fP for syntax.
+All settings listed below can be set with the `:set' command.
+See \fBSettings\fP under \fBCOMMAND MODE\fP for syntax.
 .TP
 .B accelerated-2d-canvas (bool)
 Enable or disable accelerated 2D canvas.
 When accelerated 2D canvas is enabled, WebKit may render some 2D canvas
 content using hardware accelerated drawing operations.
+.TP
+.B allow-file-access-from-file-urls (bool)
+Indicates whether file access is allowed from file URLs.
+By default, when something is loaded using a file URI, cross origin requests
+to other file resources are not allowed.
+.TP
+.B allow-universal-access-from-file-urls (bool)
+Indicates whether or not JavaScript running in the context of a file scheme
+URL should be allowed to access content from any origin.
+By default, when something is loaded in a using a file scheme URL, access to
+the local file system and arbitrary local storage is not allowed.
 .TP
 .B caret (bool)
 Whether to enable accessibility enhanced keyboard navigation.
@@ -1113,7 +1141,7 @@ case, but match them lowercase.
 To have upper case hint labels, it's possible to add following css to the
 `style.css' file in vimb's configuration directory.
 .IP
-"._hintLabel {text-transform: uppercase !important;}"
+"span[vimbhint="label"] {text-transform: uppercase !important;}"
 .TP
 .B history-max-items (int)
 Maximum number of unique items stored in search-, command or URI history.
@@ -1279,7 +1307,7 @@ to complete.
 The user-agent string used by WebKit.
 .TP
 .B user-scripts (bool)
-Indicates if user style sheet file $XDG_CONFIG_HOME/vimb/style.css is sourced.
+If 'on' the user scripts are injected into every page.
 .TP
 .B webaudio (bool)
 Enable or disable support for WebAudio on pages.
@@ -1356,10 +1384,10 @@ There are also some sample scripts installed together with Vimb under
 PREFIX/share/vimb/examples.
 .SH ENVIRONMENT
 .TP
-.B http_proxy
-If this variable is set to an non-empty value, and the configuration option
-`proxy' is enabled, this will be used as HTTP proxy.
-If the proxy URL has no scheme set, HTTP is assumed.
+.B http_proxy, HTTP_PROXY
+If either environment variable is non-empty, the specified host and
+optional port is used to tunnel requests. For example:
+HTTP_PROXY=localhost:8118.
 .SH "REPORTING BUGS"
 Report bugs to the main project page on https://github.com/fanglingsu/vimb/issues
 .br

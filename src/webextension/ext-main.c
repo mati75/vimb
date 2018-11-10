@@ -80,9 +80,18 @@ static const char introspection_xml[] =
     "   <arg type='t' name='page_id' direction='out'/>"
     "   <arg type='t' name='max' direction='out'/>"
     "   <arg type='q' name='percent' direction='out'/>"
+    "   <arg type='t' name='top' direction='out'/>"
     "  </signal>"
     "  <method name='SetHeaderSetting'>"
     "   <arg type='s' name='headers' direction='in'/>"
+    "  </method>"
+    "  <method name='LockInput'>"
+    "   <arg type='t' name='page_id' direction='in'/>"
+    "   <arg type='s' name='elemend_id' direction='in'/>"
+    "  </method>"
+    "  <method name='UnlockInput'>"
+    "   <arg type='t' name='page_id' direction='in'/>"
+    "   <arg type='s' name='elemend_id' direction='in'/>"
     "  </method>"
     " </interface>"
     "</node>";
@@ -128,23 +137,24 @@ void webkit_web_extension_initialize_with_user_data(WebKitWebExtension *extensio
 static gboolean on_authorize_authenticated_peer(GDBusAuthObserver *observer,
         GIOStream *stream, GCredentials *credentials, gpointer extension)
 {
-    static GCredentials *own_credentials = NULL;
-    GError *error = NULL;
+    gboolean authorized = FALSE;
+    if (credentials) {
+        GCredentials *own_credentials;
 
-    if (!own_credentials) {
+        GError *error   = NULL;
         own_credentials = g_credentials_new();
+        if (g_credentials_is_same_user(credentials, own_credentials, &error)) {
+            authorized = TRUE;
+        } else {
+            g_warning("Failed to authorize web extension connection: %s", error->message);
+            g_error_free(error);
+        }
+        g_object_unref(own_credentials);
+    } else {
+        g_warning ("No credentials received from UI process.\n");
     }
 
-    if (credentials && g_credentials_is_same_user(credentials, own_credentials, &error)) {
-        return TRUE;
-    }
-
-    if (error) {
-        g_warning("Failed to authorize connection to ui: %s", error->message);
-        g_error_free(error);
-    }
-
-    return FALSE;
+    return authorized;
 }
 
 static void on_dbus_connection_created(GObject *source_object,
@@ -240,7 +250,7 @@ static void on_document_scroll(WebKitDOMEventTarget *target, WebKitDOMEvent *eve
 
     if (doc) {
         WebKitDOMElement *body, *de;
-        glong max = 0, scrollTop, scrollHeight, clientHeight;
+        glong max = 0, top = 0, scrollTop, scrollHeight, clientHeight;
         guint percent = 0;
 
         de = webkit_dom_document_get_document_element(doc);
@@ -253,21 +263,25 @@ static void on_document_scroll(WebKitDOMEventTarget *target, WebKitDOMEvent *eve
             return;
         }
 
-        scrollTop = webkit_dom_element_get_scroll_top(body);
-        if (scrollTop) {
-            clientHeight = webkit_dom_element_get_client_height(WEBKIT_DOM_ELEMENT(de));
-            scrollHeight = webkit_dom_element_get_scroll_height(body);
+        scrollTop = MAX(webkit_dom_element_get_scroll_top(de),
+                webkit_dom_element_get_scroll_top(body));
 
-            /* Get the maximum scrollable page size. This is the size of the whole
-            * document - height of the viewport. */
-            max = scrollHeight - clientHeight ;
-            if (max) {
-                percent = (guint)(0.5 + (scrollTop * 100 / max));
-            }
+        clientHeight = webkit_dom_dom_window_get_inner_height(
+                webkit_dom_document_get_default_view(doc));
+
+        scrollHeight = MAX(webkit_dom_element_get_scroll_height(de),
+                webkit_dom_element_get_scroll_height(body));
+
+        /* Get the maximum scrollable page size. This is the size of the whole
+         * document - height of the viewport. */
+        max = scrollHeight - clientHeight;
+        if (max > 0) {
+            percent = (guint)(0.5 + (scrollTop * 100 / max));
+            top = scrollTop;
         }
 
-        dbus_emit_signal("VerticalScroll", g_variant_new("(ttq)",
-                    webkit_web_page_get_id(page), max, percent));
+        dbus_emit_signal("VerticalScroll", g_variant_new("(ttqt)",
+                webkit_web_page_get_id(page), max, percent, top));
     }
 }
 
@@ -415,6 +429,22 @@ static void dbus_handle_method_call(GDBusConnection *conn, const char *sender,
             ext.headers = NULL;
         }
         ext.headers = soup_header_parse_param_list(value);
+        g_dbus_method_invocation_return_value(invocation, NULL);
+    } else if (!g_strcmp0(method, "LockInput")) {
+        g_variant_get(parameters, "(ts)", &pageid, &value);
+        page = get_web_page_or_return_dbus_error(invocation, WEBKIT_WEB_EXTENSION(extension), pageid);
+        if (!page) {
+            return;
+        }
+        ext_dom_lock_input(webkit_web_page_get_dom_document(page), value);
+        g_dbus_method_invocation_return_value(invocation, NULL);
+    } else if (!g_strcmp0(method, "UnlockInput")) {
+        g_variant_get(parameters, "(ts)", &pageid, &value);
+        page = get_web_page_or_return_dbus_error(invocation, WEBKIT_WEB_EXTENSION(extension), pageid);
+        if (!page) {
+            return;
+        }
+        ext_dom_unlock_input(webkit_web_page_get_dom_document(page), value);
         g_dbus_method_invocation_return_value(invocation, NULL);
     }
 }

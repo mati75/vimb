@@ -18,7 +18,7 @@ SRCDIR  = src
 DOCDIR  = doc
 
 # used libs
-LIBS = gtk+-3.0 'webkit2gtk-4.0 >= 2.3.5'
+LIBS = gtk+-3.0 'webkit2gtk-4.0 >= 2.8.0'
 
 COMMIT := $(shell git describe --tags --always 2> /dev/null || echo "unknown")
 
@@ -34,9 +34,9 @@ CPPFLAGS += -DGDK_DISABLE_DEPRECATED
 
 # flags used to build webextension
 EXTTARGET   = webext_main.so
-EXTCFLAGS   = ${CFLAGS} -fPIC $(shell pkg-config --cflags webkit2gtk-4.0)
+EXTCFLAGS   = ${CFLAGS} $(shell pkg-config --cflags webkit2gtk-web-extension-4.0)
 EXTCPPFLAGS = $(CPPFLAGS)
-EXTLDFLAGS  = $(shell pkg-config --libs webkit2gtk-4.0) -shared
+EXTLDFLAGS  = $(shell pkg-config --libs webkit2gtk-web-extension-4.0) -shared
 
 # flags used for the main application
 CFLAGS     += $(shell pkg-config --cflags $(LIBS))

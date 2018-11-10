@@ -80,6 +80,12 @@ var hints = Object.freeze((function(){
         if (removeListener && w) {
             w.removeEventListener("resize", onresize, true);
             w.removeEventListener("scroll", onresize, false);
+            for (i = 0; i < w.frames.length; i++) {
+                try {
+                    w.frames[i].frameElement.contentDocument.removeEventListener("scroll", onresize, false);
+                } catch (ex) {
+                }
+            }
         }
         for (i = 0; i < docs.length; i++) {
             doc = docs[i];
@@ -170,8 +176,8 @@ var hints = Object.freeze((function(){
                 label.setAttribute(
                     "style", [
                         "display:none;",
-                        "left:", Math.max((rect.left + offsetX), offsetX), "px;",
-                        "top:", Math.max((rect.top + offsetY), offsetY), "px;"
+                        "left:", rect.left, "px;",
+                        "top:", rect.top, "px;"
                     ].join("")
                 );
 
@@ -220,6 +226,7 @@ var hints = Object.freeze((function(){
             /* append the fragment to the document */
             var hDiv = doc.createElement("div");
             hDiv.setAttribute(attr, "container");
+            hDiv.setAttribute("style", "position:fixed;top:0;left:0;z-index:225000;");
             hDiv.appendChild(fragment);
             if (doc.body) {
                 doc.body.appendChild(hDiv);
@@ -554,6 +561,12 @@ var hints = Object.freeze((function(){
 
             window.addEventListener("resize", onresize, true);
             window.addEventListener("scroll", onresize, false);
+            for (var i = 0; i < window.frames.length; i++) {
+                try {
+                    window.frames[i].frameElement.contentDocument.addEventListener("scroll", onresize, false);
+                } catch (ex) {
+                }
+            }
 
             create();
             return show(true);
