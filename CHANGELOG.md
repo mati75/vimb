@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 ### Removed
 
+## [3.4.0] - 2019-03-26
+### Added
+* Allow to show video in fullscreen, without statusbar and inputbox, if requested.
+* Added option `--no-maximize` to no start with maximized window #483.
+* New setting `prevent-newwindow` to enforce opening links into same window
+  even if they are crafted by `target="_blank"` or using `window.open(...)` #544.
+### Changed
+* Increased min required webkit version to 2.20.x.
+* Use man page date instead of build date ot make reproducible builds.
+* URLs shown on statusbar and title are now shown as punicode if they contain
+  homographs.
+### Fixed
+* Fix out-of-bounds buffer access in parse_command (Thanks to Sören Tempel) #529.
+* Fixed none shown hint labels by Content-Security-Policy headers #531.
+* Fixed segfault on JavaScript `window.close()` call #537.
+* Fixed no char inserted in input mode after timeout and imap/inoremap
+  candidate #546.
+
 ## [3.3.0] - 2018-11-06
 
 ### Added
@@ -24,7 +42,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   using names marks.
   Set a marks by `m{a-z}` in normal mode. Jump to marks by `'{a-z}`.
 * Re-Added `gf` to show page source (Thanks to Leonardo Taccari) #361.
-  Webkit2 does not allow to show tha page in the source view mode so the `gf`
+  Webkit2 does not allow to show the page in the source view mode so the `gf`
   writes the HTML to a temporary files and opens it in the editor configured
   by `:set editor-command=...`
 ### Changed
@@ -45,8 +63,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 * Allow basic motion commands for hinting too.
 * Show the numbers of search matches in status bar.
-* Show dialog if the page makes a permission request e.g. gelocation to allow
-  the user to make a decission.
+* Show dialog if the page makes a permission request e.g. geolocation to allow
+  the user to make a decision.
 * new Setting `show-titlebar` to toggle window decorations.
 
 ### Changed
@@ -57,7 +75,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   classes are not set anymore to the hints. So customized css for the hints have
   to be adapted to this.
 * Element ID is stored in case the editor was spawned. So it's now possible to
-  start the editor, load another page, come back and paste the edotor contents
+  start the editor, load another page, come back and paste the editor contents
   (thanks to Sven Speckmaier).
 
 ### Fixed
@@ -166,7 +184,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-* Queueing of key events - fixes swalled chars in case of some imap bindings
+* Queueing of key events - fixes swallowed chars in case of some imap bindings
   #258 (thanks to Michael Mackus)
 * Allow to disable xembed by `FEATURE_NO_XEMBED` to compile on wayland only
   platforms (thanks to Patrick Steinhardt)
@@ -224,6 +242,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Fixed none POSIX `echo -n` call
 
 [Unreleased]: https://github.com/fanglingsu/vimb/compare/3.3.0...master
+[3.4.0]: https://github.com/fanglingsu/vimb/compare/3.3.0...3.4.0
 [3.3.0]: https://github.com/fanglingsu/vimb/compare/3.2.0...3.3.0
 [3.2.0]: https://github.com/fanglingsu/vimb/compare/3.1.0...3.2.0
 [3.1.0]: https://github.com/fanglingsu/vimb/compare/3.0-alpha...3.1.0

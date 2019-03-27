@@ -20,6 +20,7 @@
 #include <glib.h>
 #include <string.h>
 
+#include "../version.h"
 #include "completion.h"
 #include "config.h"
 #include "ext-proxy.h"
@@ -53,9 +54,7 @@ static int cookie_accept(Client *c, const char *name, DataType type, void *value
 static int default_zoom(Client *c, const char *name, DataType type, void *value, void *data);
 static int fullscreen(Client *c, const char *name, DataType type, void *value, void *data);
 static int gui_style(Client *c, const char *name, DataType type, void *value, void *data);
-#if WEBKIT_CHECK_VERSION (2, 16, 0)
 static int hardware_acceleration_policy(Client *c, const char *name, DataType type, void *value, void *data);
-#endif
 static int input_autohide(Client *c, const char *name, DataType type, void *value, void *data);
 static int internal(Client *c, const char *name, DataType type, void *value, void *data);
 static int headers(Client *c, const char *name, DataType type, void *value, void *data);
@@ -77,16 +76,12 @@ void setting_init(Client *c)
     gboolean on = TRUE, off = FALSE;
 
     c->config.settings = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)setting_free);
-    setting_add(c, "user-agent", TYPE_CHAR, &"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/604.1 (KHTML, like Gecko) Version/11.0 Safari/604.1 " PROJECT "/" VERSION, webkit, 0, "user-agent");
+    setting_add(c, "user-agent", TYPE_CHAR, &"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.0 Safari/605.1.15 " PROJECT "/" VERSION, webkit, 0, "user-agent");
     /* TODO use the real names for webkit settings */
     i = 14;
     setting_add(c, "accelerated-2d-canvas", TYPE_BOOLEAN, &off, webkit, 0, "enable-accelerated-2d-canvas");
-#if WEBKIT_CHECK_VERSION (2, 10, 0)
     setting_add(c, "allow-file-access-from-file-urls", TYPE_BOOLEAN, &off, webkit, 0, "allow-file-access-from-file-urls");
-#endif
-#if WEBKIT_CHECK_VERSION (2, 14, 0)
     setting_add(c, "allow-universal-access-from-file-urls", TYPE_BOOLEAN, &off, webkit, 0, "allow-universal-access-from-file-urls");
-#endif
     setting_add(c, "caret", TYPE_BOOLEAN, &off, webkit, 0, "enable-caret-browsing");
     setting_add(c, "cursiv-font", TYPE_CHAR, &"serif", webkit, 0, "cursive-font-family");
     setting_add(c, "default-charset", TYPE_CHAR, &"utf-8", webkit, 0, "default-charset");
@@ -95,9 +90,7 @@ void setting_init(Client *c)
     i = SETTING_DEFAULT_FONT_SIZE;
     setting_add(c, "font-size", TYPE_INTEGER, &i, webkit, 0, "default-font-size");
     setting_add(c, "frame-flattening", TYPE_BOOLEAN, &off, webkit, 0, "enable-frame-flattening");
-#if WEBKIT_CHECK_VERSION (2, 16, 0)
     setting_add(c, "hardware-acceleration-policy", TYPE_CHAR, &"ondemand", hardware_acceleration_policy, FLAG_NODUP, NULL);
-#endif
     setting_add(c, "header", TYPE_CHAR, &"", headers, FLAG_LIST|FLAG_NODUP, "header");
     i = 1000;
     setting_add(c, "hint-timeout", TYPE_INTEGER, &i, NULL, 0, NULL);
@@ -121,6 +114,7 @@ void setting_init(Client *c)
     setting_add(c, "monospace-font-size", TYPE_INTEGER, &i, webkit, 0, "default-monospace-font-size");
     setting_add(c, "offline-cache", TYPE_BOOLEAN, &on, webkit, 0, "enable-offline-web-application-cache");
     setting_add(c, "plugins", TYPE_BOOLEAN, &on, webkit, 0, "enable-plugins");
+    setting_add(c, "prevent-newwindow", TYPE_BOOLEAN, &off, internal, 0, &c->config.prevent_newwindow);
     setting_add(c, "print-backgrounds", TYPE_BOOLEAN, &on, webkit, 0, "print-backgrounds");
     setting_add(c, "private-browsing", TYPE_BOOLEAN, &off, webkit, 0, "enable-private-browsing");
     setting_add(c, "sans-serif-font", TYPE_CHAR, &"sans-serif", webkit, 0, "sans-serif-font-family");
@@ -555,7 +549,6 @@ static int window_decorate(Client *c, const char *name, DataType type, void *val
     return CMD_SUCCESS;
 }
 
-#if WEBKIT_CHECK_VERSION (2, 16, 0)
 static int hardware_acceleration_policy(Client *c, const char *name, DataType type, void *value, void *data)
 {
     WebKitSettings *settings = webkit_web_view_get_settings(c->webview);
@@ -573,7 +566,6 @@ static int hardware_acceleration_policy(Client *c, const char *name, DataType ty
 
     return CMD_SUCCESS;
 }
-#endif
 
 /**
  * Allow to set user defined http headers.

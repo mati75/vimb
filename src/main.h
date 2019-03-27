@@ -171,6 +171,7 @@ struct State {
     GList               *downloads;
     guint               progress;
     WebKitHitTestResult *hit_test_result;
+    gboolean            is_fullscreen;
 
     struct {
         gboolean    active;         /* indicate if there is a active search */
@@ -234,6 +235,7 @@ struct Client {
         guint                   scrollstep;
         gboolean                input_autohide;
         gboolean                incsearch;
+        gboolean                prevent_newwindow;
         guint                   default_zoom;   /* default zoom level in percent */
         Shortcut                *shortcuts;
     } config;
@@ -266,6 +268,7 @@ struct Vimb {
         guint   closed_max;
     } config;
     GtkCssProvider *style_provider;
+    gboolean    no_maximize;
 };
 
 gboolean vb_download_set_destination(Client *c, WebKitDownload *download,
