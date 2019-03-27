@@ -1,5 +1,3 @@
-VERSION = 3.2.0
-
 ifneq ($(V),1)
 Q := @
 endif
@@ -12,25 +10,27 @@ DOTDESKTOPPREFIX := $(DESTDIR)$(PREFIX)/share/applications
 LIBDIR           := $(DESTDIR)$(PREFIX)/lib/vimb
 RUNPREFIX        := $(PREFIX)
 EXTENSIONDIR     := $(RUNPREFIX)/lib/vimb
+OS               := $(shell uname -s)
 
 # define some directories
 SRCDIR  = src
 DOCDIR  = doc
 
 # used libs
-LIBS = gtk+-3.0 'webkit2gtk-4.0 >= 2.8.0'
-
-COMMIT := $(shell git describe --tags --always 2> /dev/null || echo "unknown")
+LIBS = gtk+-3.0 'webkit2gtk-4.0 >= 2.20.0'
 
 # setup general used CFLAGS
 CFLAGS   += -std=c99 -pipe -Wall -fPIC
-CPPFLAGS += -DVERSION=\"${VERSION}\" -DEXTENSIONDIR=\"${EXTENSIONDIR}\" -DCOMMIT=\"$(COMMIT)\"
+CPPFLAGS += -DEXTENSIONDIR=\"${EXTENSIONDIR}\"
 CPPFLAGS += -DPROJECT=\"vimb\" -DPROJECT_UCFIRST=\"Vimb\"
-CPPFLAGS += -D_XOPEN_SOURCE=500
-CPPFLAGS += -D__BSD_VISIBLE
 CPPFLAGS += -DGSEAL_ENABLE
 CPPFLAGS += -DGTK_DISABLE_SINGLE_INCLUDES
 CPPFLAGS += -DGDK_DISABLE_DEPRECATED
+
+ifeq "$(findstring $(OS),FreeBSD DragonFly)" ""
+CPPFLAGS += -D_XOPEN_SOURCE=500
+CPPFLAGS += -D__BSD_VISIBLE
+endif
 
 # flags used to build webextension
 EXTTARGET   = webext_main.so

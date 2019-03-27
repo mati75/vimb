@@ -1,6 +1,8 @@
 # Vimb - the Vim-like browser
 
 [![Build Status](https://api.travis-ci.com/fanglingsu/vimb.svg?branch=master)](https://travis-ci.com/fanglingsu/vimb)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Latest Release](https://img.shields.io/github/release/fanglingsu/vimb.svg?style=flat)](https://github.com/fanglingsu/vimb/releases/latest)
 
 Vimb is a Vim-like web browser that is inspired by Pentadactyl and Vimprobable.
 The goal of Vimb is to build a completely keyboard-driven, efficient and
@@ -29,12 +31,14 @@ the project page of [Vimb][].
 
 - Arch Linux: [aur/vimb][], [aur/vimb-git][]
 - Gentoo: [gentoo-git][], [gentoo][]
+- openSUSE: [network/vimb][]
+- pkgsrc: [pkgsrc/www/vimb][], [pkgsrc/wip/vimb-git][]
 - Slackware: [slackbuild/vimb][]
 
 ## dependencies
 
 - gtk+-3.0
-- webkit2gtk-4.0 >= 2.8.x
+- webkit2gtk-4.0 >= 2.20.x
 
 ## Install
 
@@ -61,7 +65,7 @@ target.
 
 ## Mailing list
 
-- feature requests, issues and patches can be discussed on the [mailing list][mail]
+- feature requests, issues and patches can be discussed on the [mailing list][mail] ([list archive][mail-archive])
 
 ## Similar projects
 
@@ -80,10 +84,14 @@ Information about the license are found in the file LICENSE.
 - http://thedarnedestthing.com/vimb
 - https://blog.jeaye.com/2015/08/23/vimb/
 
-[aur/vimb]:          https://aur.archlinux.org/packages/vimb
-[aur/vimb-git]:      https://aur.archlinux.org/packages/vimb-git
-[gentoo-git]:        https://github.com/tharvik/overlay/tree/master/www-client/vimb
-[gentoo]:            https://github.com/hsoft/portage-overlay/tree/master/www-client/vimb
-[vimb]:              https://fanglingsu.github.io/vimb/ "Vimb - Vim like browser project page"
-[mail]:              https://lists.sourceforge.net/lists/listinfo/vimb-users "vimb - mailing list"
-[slackbuild/vimb]:   https://slackbuilds.org/repository/14.2/network/vimb/
+[aur/vimb-git]:        https://aur.archlinux.org/packages/vimb-git
+[aur/vimb]:            https://aur.archlinux.org/packages/vimb
+[gentoo-git]:          https://github.com/tharvik/overlay/tree/master/www-client/vimb
+[gentoo]:              https://github.com/hsoft/portage-overlay/tree/master/www-client/vimb
+[mail-archive]:        https://sourceforge.net/p/vimb/vimb/vimb-users/ "vimb - mailing list archive"
+[mail]:                https://lists.sourceforge.net/lists/listinfo/vimb-users "vimb - mailing list"
+[network/vimb]:        https://build.opensuse.org/package/show/network/vimb
+[pkgsrc/wip/vimb-git]: http://pkgsrc.se/wip/vimb-git
+[pkgsrc/www/vimb]:     http://pkgsrc.se/www/vimb
+[slackbuild/vimb]:     https://slackbuilds.org/repository/14.2/network/vimb/
+[vimb]:                https://fanglingsu.github.io/vimb/ "Vimb - Vim like browser project page"

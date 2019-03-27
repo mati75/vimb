@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <webkit2/webkit2.h>
 
+#include "../version.h"
 #include "ascii.h"
 #include "command.h"
 #include "completion.h"
@@ -72,6 +73,9 @@ static WebKitWebView *on_webview_create(WebKitWebView *webview,
         WebKitNavigationAction *navact, Client *c);
 static gboolean on_webview_decide_policy(WebKitWebView *webview,
         WebKitPolicyDecision *dec, WebKitPolicyDecisionType type, Client *c);
+static void decide_navigation_action(Client *c, WebKitPolicyDecision *dec);
+static void decide_new_window_action(Client *c, WebKitPolicyDecision *dec);
+static void decide_response(Client *c, WebKitPolicyDecision *dec);
 static void on_webview_load_changed(WebKitWebView *webview,
         WebKitLoadEvent event, Client *c);
 static void on_webview_mouse_target_changed(WebKitWebView *webview,
@@ -86,6 +90,8 @@ static void on_webview_ready_to_show(WebKitWebView *webview, Client *c);
 static gboolean on_webview_web_process_crashed(WebKitWebView *webview, Client *c);
 static gboolean on_webview_authenticate(WebKitWebView *webview,
         WebKitAuthenticationRequest *request, Client *c);
+static gboolean on_webview_enter_fullscreen(WebKitWebView *webview, Client *c);
+static gboolean on_webview_leave_fullscreen(WebKitWebView *webview, Client *c);
 static gboolean on_window_delete_event(GtkWidget *window, GdkEvent *event, Client *c);
 static void on_window_destroy(GtkWidget *window, Client *c);
 static gboolean quit(Client *c);
@@ -801,7 +807,9 @@ static GtkWidget *create_window(Client *c)
         window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
         gtk_window_set_role(GTK_WINDOW(window), PROJECT_UCFIRST);
         gtk_window_set_default_size(GTK_WINDOW(window), WIN_WIDTH, WIN_HEIGHT);
-        gtk_window_maximize(GTK_WINDOW(window));
+        if (!vb.no_maximize) {
+            gtk_window_maximize(GTK_WINDOW(window));
+        }
     }
 
     g_object_connect(
@@ -982,7 +990,8 @@ static void spawn_new_instance(const char *uri)
 #ifndef FEATURE_NO_XEMBED
         + (vb.embed ? 2 : 0)
 #endif
-        + (vb.profile ? 2 : 0),
+        + (vb.profile ? 2 : 0)
+        + (vb.no_maximize ? 1 : 0),
         sizeof(char *)
     );
 
@@ -1003,6 +1012,9 @@ static void spawn_new_instance(const char *uri)
     if (vb.profile) {
         cmd[i++] = "-p";
         cmd[i++] = vb.profile;
+    }
+    if (vb.no_maximize) {
+        cmd[i++] = "--no-maximize";
     }
     cmd[i++] = (char*)uri;
     cmd[i++] = NULL;
@@ -1192,7 +1204,7 @@ static void on_webdownload_received_data(WebKitDownload *download,
  */
 static void on_webview_close(WebKitWebView *webview, Client *c)
 {
-    client_destroy(c);
+    gtk_widget_destroy(c->window);
 }
 
 /**
@@ -1202,6 +1214,14 @@ static void on_webview_close(WebKitWebView *webview, Client *c)
 static WebKitWebView *on_webview_create(WebKitWebView *webview,
         WebKitNavigationAction *navact, Client *c)
 {
+    WebKitURIRequest *req;
+    if (c->config.prevent_newwindow) {
+        req = webkit_navigation_action_get_request(navact);
+        vb_load_uri(c, &(Arg){TARGET_CURRENT, (char*)webkit_uri_request_get_uri(req)});
+
+        return NULL;
+    }
+
     Client *new = client_new(webview);
 
     return new->webview;
@@ -1215,75 +1235,111 @@ static WebKitWebView *on_webview_create(WebKitWebView *webview,
 static gboolean on_webview_decide_policy(WebKitWebView *webview,
         WebKitPolicyDecision *dec, WebKitPolicyDecisionType type, Client *c)
 {
-    guint status, button, mod;
-    WebKitNavigationAction *a;
-    WebKitURIRequest *req;
-    WebKitURIResponse *res;
-    const char *uri;
-
     switch (type) {
         case WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION:
-            a      = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(dec));
-            req    = webkit_navigation_action_get_request(a);
-            button = webkit_navigation_action_get_mouse_button(a);
-            mod    = webkit_navigation_action_get_modifiers(a);
-            uri    = webkit_uri_request_get_uri(req);
-
-            /* Try to handle with specific protocol handler. */
-            if (handler_handle_uri(c->handler, uri)) {
-                webkit_policy_decision_ignore(dec);
-                return TRUE;
-            }
-            /* Spawn new instance if the new win flag is set on the mode, or
-             * the navigation was triggered by CTRL-LeftMouse or MiddleMouse. */
-            if ((c->mode->flags & FLAG_NEW_WIN)
-                || (webkit_navigation_action_get_navigation_type(a) == WEBKIT_NAVIGATION_TYPE_LINK_CLICKED
-                    && (button == 2 || (button == 1 && mod & GDK_CONTROL_MASK)))) {
-
-                /* Remove the FLAG_NEW_WIN after the first use. */
-                c->mode->flags &= ~FLAG_NEW_WIN;
-
-                webkit_policy_decision_ignore(dec);
-                spawn_new_instance(uri);
-                return TRUE;
-            }
-            return FALSE;
+            decide_navigation_action(c, dec);
+            break;
 
         case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
-            a   = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(dec));
-
-            /* Ignore opening new window if this was started without user gesture. */
-            if (!webkit_navigation_action_is_user_gesture(a)) {
-                webkit_policy_decision_ignore(dec);
-                return TRUE;
-            }
-
-            if (webkit_navigation_action_get_navigation_type(a) == WEBKIT_NAVIGATION_TYPE_LINK_CLICKED) {
-                webkit_policy_decision_ignore(dec);
-                /* This is triggered on link click for links with
-                 * target="_blank". Maybe it should be configurable if the
-                 * page is opened as tab or a new instance. */
-                req = webkit_navigation_action_get_request(a);
-                spawn_new_instance(webkit_uri_request_get_uri(req));
-                return TRUE;
-            }
-            return FALSE;
+            decide_new_window_action(c, dec);
+            break;
 
         case WEBKIT_POLICY_DECISION_TYPE_RESPONSE:
-            res    = webkit_response_policy_decision_get_response(WEBKIT_RESPONSE_POLICY_DECISION(dec));
-            status = webkit_uri_response_get_status_code(res);
-
-            if (!webkit_response_policy_decision_is_mime_type_supported(WEBKIT_RESPONSE_POLICY_DECISION(dec))
-                    && (SOUP_STATUS_IS_SUCCESSFUL(status) || status == SOUP_STATUS_NONE)) {
-
-                webkit_policy_decision_download(dec);
-
-                return TRUE;
-            }
-            return FALSE;
+            decide_response(c, dec);
+            break;
 
         default:
-            return FALSE;
+            webkit_policy_decision_ignore(dec);
+            break;
+    }
+
+    return TRUE;
+}
+
+static void decide_navigation_action(Client *c, WebKitPolicyDecision *dec)
+{
+    guint button, mod;
+    WebKitNavigationAction *a;
+    WebKitURIRequest *req;
+    const char *uri;
+
+    a   = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(dec));
+    req = webkit_navigation_action_get_request(a);
+    uri = webkit_uri_request_get_uri(req);
+
+    /* Try to handle with specific protocol handler. */
+    if (handler_handle_uri(c->handler, uri)) {
+        webkit_policy_decision_ignore(dec);
+        return;
+    }
+
+    button = webkit_navigation_action_get_mouse_button(a);
+    mod    = webkit_navigation_action_get_modifiers(a);
+    /* Spawn new instance if the new win flag is set on the mode, or the
+     * navigation was triggered by CTRL-LeftMouse or MiddleMouse. */
+    if ((c->mode->flags & FLAG_NEW_WIN)
+        || (webkit_navigation_action_get_navigation_type(a) == WEBKIT_NAVIGATION_TYPE_LINK_CLICKED
+            && (button == 2 || (button == 1 && mod & GDK_CONTROL_MASK)))) {
+
+        /* Remove the FLAG_NEW_WIN after the first use. */
+        c->mode->flags &= ~FLAG_NEW_WIN;
+
+        webkit_policy_decision_ignore(dec);
+        spawn_new_instance(uri);
+    } else {
+        webkit_policy_decision_use(dec);
+    }
+}
+
+static void decide_new_window_action(Client *c, WebKitPolicyDecision *dec)
+{
+    WebKitNavigationAction *a;
+    WebKitURIRequest *req;
+
+    a = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(dec));
+
+    switch (webkit_navigation_action_get_navigation_type(a)) {
+        case WEBKIT_NAVIGATION_TYPE_LINK_CLICKED:   /* fallthrough */
+        case WEBKIT_NAVIGATION_TYPE_FORM_SUBMITTED: /* fallthrough */
+        case WEBKIT_NAVIGATION_TYPE_BACK_FORWARD:   /* fallthrough */
+        case WEBKIT_NAVIGATION_TYPE_RELOAD:         /* fallthrough */
+        case WEBKIT_NAVIGATION_TYPE_FORM_RESUBMITTED:
+            /* This is triggered on link click for links with target="_blank".
+             * Maybe it should be configurable if the page is opened as tab or
+             * a new instance. Ignore opening new window if this was started
+             * without user gesture. */
+            if (webkit_navigation_action_is_user_gesture(a)) {
+                req = webkit_navigation_action_get_request(a);
+                if (c->config.prevent_newwindow) {
+                    /* Load the uri into the browser instance. */
+                    vb_load_uri(c, &(Arg){TARGET_CURRENT, (char*)webkit_uri_request_get_uri(req)});
+                } else {
+                    spawn_new_instance(webkit_uri_request_get_uri(req));
+                }
+            }
+            break;
+
+        case WEBKIT_NAVIGATION_TYPE_OTHER: /* fallthrough */
+        default:
+            break;
+    }
+    webkit_policy_decision_ignore(dec);
+}
+
+static void decide_response(Client *c, WebKitPolicyDecision *dec)
+{
+    guint status;
+    WebKitURIResponse *res;
+
+    res    = webkit_response_policy_decision_get_response(WEBKIT_RESPONSE_POLICY_DECISION(dec));
+    status = webkit_uri_response_get_status_code(res);
+
+    if (webkit_response_policy_decision_is_mime_type_supported(WEBKIT_RESPONSE_POLICY_DECISION(dec))) {
+        webkit_policy_decision_use(dec);
+    } else if (SOUP_STATUS_IS_SUCCESSFUL(status) || status == SOUP_STATUS_NONE) {
+        webkit_policy_decision_download(dec);
+    } else {
+        webkit_policy_decision_ignore(dec);
     }
 }
 
@@ -1295,13 +1351,13 @@ static void on_webview_load_changed(WebKitWebView *webview,
 
     switch (event) {
         case WEBKIT_LOAD_STARTED:
-            uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
 #ifdef FEATURE_AUTOCMD
-            autocmd_run(c, AU_LOAD_STARTED, uri, NULL);
+            autocmd_run(c, AU_LOAD_STARTED, webkit_web_view_get_uri(webview), NULL);
 #endif
             /* update load progress in statusbar */
             c->state.progress = 0;
             vb_statusbar_update(c);
+            uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
             set_title(c, uri);
             /* Make sure hinting is cleared before the new page is loaded.
              * Without that vimb would still be in hinting mode after hinting
@@ -1322,11 +1378,11 @@ static void on_webview_load_changed(WebKitWebView *webview,
              * or aborted the load will be commited. So this seems to be the
              * right place to remove the flag. */
             c->mode->flags &= ~FLAG_IGNORE_FOCUS;
-            uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
 #ifdef FEATURE_AUTOCMD
-            autocmd_run(c, AU_LOAD_COMMITTED, uri, NULL);
+            autocmd_run(c, AU_LOAD_COMMITTED, webkit_web_view_get_uri(webview), NULL);
 #endif
             /* save the current URI in register % */
+            uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
             vb_register_add(c, '%', uri);
             /* check if tls is on and the page is trusted */
             if (g_str_has_prefix(uri, "https://")) {
@@ -1351,7 +1407,7 @@ static void on_webview_load_changed(WebKitWebView *webview,
         case WEBKIT_LOAD_FINISHED:
             uri = util_sanitize_uri(webkit_web_view_get_uri(webview));
 #ifdef FEATURE_AUTOCMD
-            autocmd_run(c, AU_LOAD_FINISHED, uri, NULL);
+            autocmd_run(c, AU_LOAD_FINISHED, webkit_web_view_get_uri(webview), NULL);
 #endif
             c->state.progress = 100;
             if (strncmp(uri, "about:", 6)) {
@@ -1474,6 +1530,28 @@ static gboolean on_webview_authenticate(WebKitWebView *webview,
          * page is open and looses the focus. */
         c->mode->flags |= FLAG_IGNORE_FOCUS;
     }
+    return FALSE;
+}
+
+/**
+ * Callback in case JS calls element.webkitRequestFullScreen.
+ */
+static gboolean on_webview_enter_fullscreen(WebKitWebView *webview, Client *c)
+{
+    c->state.is_fullscreen = TRUE;
+    gtk_widget_hide(GTK_WIDGET(c->statusbar.box));
+    gtk_widget_set_visible(GTK_WIDGET(c->input), FALSE);
+    return FALSE;
+}
+
+/**
+ * Callback to restore the window state after entering fullscreen.
+ */
+static gboolean on_webview_leave_fullscreen(WebKitWebView *webview, Client *c)
+{
+    c->state.is_fullscreen = FALSE;
+    gtk_widget_show(GTK_WIDGET(c->statusbar.box));
+    gtk_widget_set_visible(GTK_WIDGET(c->input), TRUE);
     return FALSE;
 }
 
@@ -1677,7 +1755,7 @@ static void vimb_setup(void)
     vb_mode_add('p', pass_enter, pass_leave, pass_keypress, NULL);
 
     /* Prepare the style provider to be used for the clients and completion. */
-    vb.style_provider = gtk_css_provider_get_default();
+    vb.style_provider = gtk_css_provider_new();
 }
 
 /**
@@ -1807,6 +1885,8 @@ static WebKitWebView *webview_new(Client *c, WebKitWebView *webview)
         "signal::ready-to-show", G_CALLBACK(on_webview_ready_to_show), c,
         "signal::web-process-crashed", G_CALLBACK(on_webview_web_process_crashed), c,
         "signal::authenticate", G_CALLBACK(on_webview_authenticate), c,
+        "signal::enter-fullscreen", G_CALLBACK(on_webview_enter_fullscreen), c,
+        "signal::leave-fullscreen", G_CALLBACK(on_webview_leave_fullscreen), c,
         NULL
     );
 
@@ -1906,10 +1986,11 @@ int main(int argc, char* argv[])
     gboolean ver = FALSE, buginfo = FALSE;
 
     GOptionEntry opts[] = {
-        {"embed", 'e', 0, G_OPTION_ARG_STRING, &winid, "Reparents to window specified by xid", NULL},
         {"config", 'c', 0, G_OPTION_ARG_FILENAME, &vb.configfile, "Custom configuration file", NULL},
+        {"embed", 'e', 0, G_OPTION_ARG_STRING, &winid, "Reparents to window specified by xid", NULL},
         {"profile", 'p', 0, G_OPTION_ARG_CALLBACK, (GOptionArgFunc*)profileOptionArgFunc, "Profile name", NULL},
         {"version", 'v', 0, G_OPTION_ARG_NONE, &ver, "Print version", NULL},
+        {"no-maximize", 0, 0, G_OPTION_ARG_NONE, &vb.no_maximize, "Do no attempt to maximize window", NULL},
         {"bug-info", 0, 0, G_OPTION_ARG_NONE, &buginfo, "Print used library versions", NULL},
         {NULL}
     };
@@ -1923,12 +2004,12 @@ int main(int argc, char* argv[])
     }
 
     if (ver) {
-        printf("%s, version %s\n\n", PROJECT, VERSION);
+        printf("%s, version %s\n", PROJECT, VERSION);
         return EXIT_SUCCESS;
     }
 
     if (buginfo) {
-        printf("Commit:          %s\n", COMMIT);
+        printf("Version:         %s\n", VERSION);
         printf("WebKit compile:  %d.%d.%d\n",
                 WEBKIT_MAJOR_VERSION,
                 WEBKIT_MINOR_VERSION,
