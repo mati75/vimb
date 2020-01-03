@@ -51,8 +51,10 @@ static void setting_print(Client *c, Setting *s);
 static void setting_free(Setting *s);
 
 static int cookie_accept(Client *c, const char *name, DataType type, void *value, void *data);
+static int dark_mode(Client *c, const char *name, DataType type, void *value, void *data);
 static int default_zoom(Client *c, const char *name, DataType type, void *value, void *data);
 static int fullscreen(Client *c, const char *name, DataType type, void *value, void *data);
+static int geolocation(Client *c, const char *name, DataType type, void *value, void *data);
 static int gui_style(Client *c, const char *name, DataType type, void *value, void *data);
 static int hardware_acceleration_policy(Client *c, const char *name, DataType type, void *value, void *data);
 static int input_autohide(Client *c, const char *name, DataType type, void *value, void *data);
@@ -84,12 +86,14 @@ void setting_init(Client *c)
     setting_add(c, "allow-universal-access-from-file-urls", TYPE_BOOLEAN, &off, webkit, 0, "allow-universal-access-from-file-urls");
     setting_add(c, "caret", TYPE_BOOLEAN, &off, webkit, 0, "enable-caret-browsing");
     setting_add(c, "cursiv-font", TYPE_CHAR, &"serif", webkit, 0, "cursive-font-family");
+    setting_add(c, "dark-mode", TYPE_BOOLEAN, &off, dark_mode, 0, NULL);
     setting_add(c, "default-charset", TYPE_CHAR, &"utf-8", webkit, 0, "default-charset");
     setting_add(c, "default-font", TYPE_CHAR, &"sans-serif", webkit, 0, "default-font-family");
     setting_add(c, "dns-prefetching", TYPE_BOOLEAN, &on, webkit, 0, "enable-dns-prefetching");
     i = SETTING_DEFAULT_FONT_SIZE;
     setting_add(c, "font-size", TYPE_INTEGER, &i, webkit, 0, "default-font-size");
     setting_add(c, "frame-flattening", TYPE_BOOLEAN, &off, webkit, 0, "enable-frame-flattening");
+    setting_add(c, "geolocation", TYPE_CHAR, &"ask", geolocation, FLAG_NODUP, NULL);
     setting_add(c, "hardware-acceleration-policy", TYPE_CHAR, &"ondemand", hardware_acceleration_policy, FLAG_NODUP, NULL);
     setting_add(c, "header", TYPE_CHAR, &"", headers, FLAG_LIST|FLAG_NODUP, "header");
     i = 1000;
@@ -97,6 +101,7 @@ void setting_init(Client *c)
     setting_add(c, "hint-keys", TYPE_CHAR, &"0123456789", NULL, 0, NULL);
     setting_add(c, "hint-follow-last", TYPE_BOOLEAN, &on, NULL, 0, NULL);
     setting_add(c, "hint-keys-same-length", TYPE_BOOLEAN, &off, NULL, 0, NULL);
+    setting_add(c, "hint-match-element", TYPE_BOOLEAN, &on, NULL, 0, NULL);
     setting_add(c, "html5-database", TYPE_BOOLEAN, &on, webkit, 0, "enable-html5-database");
     setting_add(c, "html5-local-storage", TYPE_BOOLEAN, &on, webkit, 0, "enable-html5-local-storage");
     setting_add(c, "hyperlink-auditing", TYPE_BOOLEAN, &off, webkit, 0, "enable-hyperlink-auditing");
@@ -516,6 +521,13 @@ static int cookie_accept(Client *c, const char *name, DataType type, void *value
     return CMD_SUCCESS;
 }
 
+static int dark_mode(Client *c, const char *name, DataType type, void *value, void *data)
+{
+    g_object_set(gtk_widget_get_settings(GTK_WIDGET(c->window)), "gtk-application-prefer-dark-theme", *(gboolean*)value, NULL);
+
+    return CMD_SUCCESS;
+}
+
 static int default_zoom(Client *c, const char *name, DataType type, void *value, void *data)
 {
     /* Store the percent value in the client config. */
@@ -536,6 +548,16 @@ static int fullscreen(Client *c, const char *name, DataType type, void *value, v
         gtk_window_unfullscreen(GTK_WINDOW(c->window));
     }
 
+    return CMD_SUCCESS;
+}
+
+static int geolocation(Client *c, const char *name, DataType type, void *value, void *data)
+{
+    char *policy = (char *)value;
+    if (strcmp("always", policy) != 0 && strcmp("ask", policy) != 0 && strcmp("never", policy) != 0) {
+        vb_echo(c, MSG_ERROR, FALSE, "%s must be in [always, ask, never]", name);
+        return CMD_ERROR | CMD_KEEPINPUT;
+    }
     return CMD_SUCCESS;
 }
 
@@ -684,7 +706,7 @@ static int user_style(Client *c, const char *name, DataType type, void *value, v
             webkit_user_style_sheet_unref(style);
             g_free(source);
         } else {
-            g_message("Could not reed style file: %s", vb.files[FILES_USER_STYLE]);
+            g_message("Could not read style file: %s", vb.files[FILES_USER_STYLE]);
         }
     } else {
         webkit_user_content_manager_remove_all_style_sheets(ucm);
