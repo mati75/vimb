@@ -1,8 +1,8 @@
-vimb (3.5.0-1) UNRELEASED; urgency=medium
+vimb (3.5.0-1) unstable; urgency=medium
 
   * New upstream release.
 
- -- Mateusz Łukasik <mati75@linuxmint.pl>  Tue, 30 Jul 2019 11:43:18 +0200
+ -- Mateusz Łukasik <mati75@linuxmint.pl>  Tue, 30 Jul 2019 13:45:27 +0200
 
 vimb (3.4.0-1) unstable; urgency=medium
 
