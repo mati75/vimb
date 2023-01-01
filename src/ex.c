@@ -127,7 +127,7 @@ static gboolean parse_count(const char **input, ExArg *arg);
 static gboolean parse_command_name(Client *c, const char **input, ExArg *arg);
 static gboolean parse_bang(const char **input, ExArg *arg);
 static gboolean parse_lhs(const char **input, ExArg *arg);
-static gboolean parse_rhs(Client *c, const char **input, ExArg *arg);
+static gboolean parse_rhs(const char **input, ExArg *arg);
 static void skip_whitespace(const char **input);
 static void free_cmdarg(ExArg *arg);
 static VbCmdResult execute(Client *c, const ExArg *arg);
@@ -477,7 +477,7 @@ VbCmdResult ex_run_file(Client *c, const char *filename)
         return res;
     }
 
-    length = g_strv_length(lines) - 1;
+    length = g_strv_length(lines);
     for (i = 0; i < length; i++) {
         line = lines[i];
         /* skip commented or empty lines */
@@ -486,7 +486,7 @@ VbCmdResult ex_run_file(Client *c, const char *filename)
         }
         if ((ex_run_string(c, line, FALSE) & ~CMD_KEEPINPUT) == CMD_ERROR) {
             res = CMD_ERROR | CMD_KEEPINPUT;
-            g_warning("Invalid command in %s: '%s'", filename, line);
+            g_warning("Invalid command in %s line #%u : '%s'", filename, i+1, line);
         }
     }
     g_strfreev(lines);
@@ -598,7 +598,7 @@ static gboolean parse(Client *c, const char **input, ExArg *arg, gboolean *nohis
     }
     /* parse the rhs if this is available */
     skip_whitespace(input);
-    parse_rhs(c, input, arg);
+    parse_rhs(input, arg);
 
     if (**input) {
         (*input)++;
@@ -731,7 +731,7 @@ static gboolean parse_lhs(const char **input, ExArg *arg)
  * command can contain any char accept of the newline, else the right hand
  * side end on the first none escaped | or newline.
  */
-static gboolean parse_rhs(Client *c, const char **input, ExArg *arg)
+static gboolean parse_rhs(const char **input, ExArg *arg)
 {
     int expflags, flags;
     gboolean cmdlist;
@@ -746,7 +746,7 @@ static gboolean parse_rhs(Client *c, const char **input, ExArg *arg)
 
     cmdlist  = (arg->flags & EX_FLAG_CMD) != 0;
     expflags = (arg->flags & EX_FLAG_EXP)
-        ? UTIL_EXP_TILDE|UTIL_EXP_DOLLAR|UTIL_EXP_SPECIAL
+        ? UTIL_EXP_TILDE|UTIL_EXP_DOLLAR
         : 0;
     flags = expflags;
 
@@ -754,7 +754,7 @@ static gboolean parse_rhs(Client *c, const char **input, ExArg *arg)
      * EX_FLAG_CMD is not set also on | */
     while (**input && **input != '\n' && (cmdlist || **input != '|')) {
         /* check for expansion placeholder */
-        util_parse_expansion(c->state, input, arg->rhs, flags, "|\\");
+        util_parse_expansion(input, arg->rhs, flags, "|\\");
 
         if (VB_IS_SEPARATOR(**input)) {
             /* add tilde expansion for next loop needs to be first char or to
@@ -1105,12 +1105,21 @@ static VbCmdResult ex_set(Client *c, const ExArg *arg)
 static VbCmdResult ex_shellcmd(Client *c, const ExArg *arg)
 {
     int status;
-    char *stdOut = NULL, *stdErr = NULL;
+    char *stdOut = NULL, *stdErr = NULL, *selection = NULL;
     VbCmdResult res;
     GError *error = NULL;
 
     if (!*arg->rhs->str) {
         return CMD_ERROR;
+    }
+
+    /* Get current selection and write it as VIMB_SELECTION into env. */
+    selection = ext_proxy_get_current_selection(c);
+    if (selection) {
+        g_setenv("VIMB_SELECTION", selection, TRUE);
+        g_free(selection);
+    } else {
+        g_setenv("VIMB_SELECTION", "", TRUE);
     }
 
     if (arg->bang) {
@@ -1292,6 +1301,8 @@ static gboolean complete(Client *c, short direction)
             switch (arg->code) {
                 case EX_OPEN:
                 case EX_TABOPEN:
+                case EX_QPUSH:
+                case EX_QUNSHIFT:
                     sort = FALSE;
                     if (*token == '!') {
                         found = bookmark_fill_completion(store, token + 1);
@@ -1324,7 +1335,7 @@ static gboolean complete(Client *c, short direction)
 
                 case EX_SAVE: /* Fallthrough */
                 case EX_SOURCE:
-                    found = util_filename_fill_completion(c->state, store, token);
+                    found = util_filename_fill_completion(store, token);
                     break;
 
 #ifdef FEATURE_AUTOCMD

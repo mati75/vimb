@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+* The new env variable `$VIMB_SELECTION` is set to the current selected text
+  whenever a `shellcmd` is run #592.
+* Allow to push link url to queue by `<S-LeftMouse>` #610.
+* Allow to decide if html5 notfication are allowed #651. New setting
+  'notification=[ask,always,never]' added.
+* Add new env `VIMB_WIN_ID` var for `:shellcmd` which holds the own window id.
+### Changed
+* Modes some files from `$XDG_CONFIG_HOME/vimb` into `$XDG_DATA_HOME/vimb` #582.
+  Following files are affected `bookmark`, `closed`, `command`, `config`,
+  `cookies.db`, `history`, `queue` and `search`.
+  Existing files could be moved to the new location by
+  ```
+  mv $XDG_CONFIG_HOME/vimb/{bookmark,closed,command,cookies.db,history,queue,search} \
+      $XDG_DATA_HOME/vimb
+
+  # and same for existing profiles
+  mkdir $XDG_DATA_HOME/vimb/<ProfileName>
+  mv $XDG_CONFIG_HOME/vimb/<ProfileName>/{bookmark,closed,command,cookies.db,history,queue,search} \
+      $XDG_DATA_HOME/vimb/<ProfileName>
+  ```
+### Fixed
+* Fixed ignored last line in config file if this line did not end in newline.
+* Fixed crash in normal_focus_last_active (Thanks to Maxime Coste)
+* Fixed hint keys going to webview if the hinted element had no src-attribut
+  (thanks to Maxime Coste)
+* Fixed erro in hinting on gitlab which caused the hints to have ho labels #659.
+### Removed
+* Expansion of `%` to the current opened URI for `:shellcmd` was removed
+  because it breaks the `x-hint-command` with URIs containing '%'. But it is
+  still possible to use `$VIMB_URI` for the `:shellcmd` which has the same
+  effect.
 
 ## [3.6.0] - 2020-01-02
 ### Added

@@ -48,13 +48,13 @@ static gboolean match_list(const char *pattern, int patlen, const char *subject)
  *
  * Returned path must be freed.
  */
-char *util_build_path(State state, const char *path, const char *dir)
+char *util_build_path(const char *path, const char *dir)
 {
     char *fullPath = NULL, *fexp, *dexp, *p;
     int expflags   = UTIL_EXP_TILDE|UTIL_EXP_DOLLAR;
 
     /* if the path could be expanded */
-    if ((fexp = util_expand(state, path, expflags))) {
+    if ((fexp = util_expand(path, expflags))) {
         if (*fexp == '/') {
             /* path is already absolute, no need to use given dir - there is
              * no need to free fexp, because this should be done by the caller
@@ -62,7 +62,7 @@ char *util_build_path(State state, const char *path, const char *dir)
             fullPath = fexp;
         } else if (dir && *dir) {
             /* try to expand also the dir given - this may be ~/path */
-            if ((dexp = util_expand(state, dir, expflags))) {
+            if ((dexp = util_expand(dir, expflags))) {
                 /* use expanded dir and append expanded path */
                 fullPath = g_build_filename(dexp, fexp, NULL);
                 g_free(dexp);
@@ -161,7 +161,7 @@ gboolean util_create_tmp_file(const char *content, char **file)
  *
  * Returned path must be g_freed.
  */
-char *util_expand(State state, const char *src, int expflags)
+char *util_expand(const char *src, int expflags)
 {
     const char **input = &src;
     char *result;
@@ -169,7 +169,7 @@ char *util_expand(State state, const char *src, int expflags)
     int flags    = expflags;
 
     while (**input) {
-        util_parse_expansion(state, input, dst, flags, "\\");
+        util_parse_expansion(input, dst, flags, "\\");
         if (VB_IS_SEPARATOR(**input)) {
             /* after space the tilde expansion is allowed */
             flags = expflags;
@@ -335,6 +335,30 @@ char *util_file_pop_line(const char *file, int *item_count)
 char *util_get_config_dir(void)
 {
     char *path = g_build_filename(g_get_user_config_dir(), PROJECT, vb.profile, NULL);
+    create_dir_if_not_exists(path);
+
+    return path;
+}
+
+/**
+ * Retrieves the data directory path according to current used profile.
+ * Returned string must be freed.
+ */
+char *util_get_data_dir(void)
+{
+    char *path = g_build_filename(g_get_user_data_dir(), PROJECT, vb.profile, NULL);
+    create_dir_if_not_exists(path);
+
+    return path;
+}
+
+/**
+ * Retrieves the cache directory path according to current used profile.
+ * Returned string must be freed.
+ */
+char *util_get_cache_dir(void)
+{
+    char *path = g_build_filename(g_get_user_cache_dir(), PROJECT, vb.profile, NULL);
     create_dir_if_not_exists(path);
 
     return path;
@@ -556,7 +580,7 @@ gboolean util_fill_completion(GtkListStore *store, const char *input, GList *src
  * Fills file path completion entries into given list store for also given
  * input.
  */
-gboolean util_filename_fill_completion(State state, GtkListStore *store, const char *input)
+gboolean util_filename_fill_completion(GtkListStore *store, const char *input)
 {
     gboolean found = FALSE;
     GError *error  = NULL;
@@ -568,9 +592,8 @@ gboolean util_filename_fill_completion(State state, GtkListStore *store, const c
     input_basename = last_slash ? last_slash + 1 : input;
     input_dirname  = g_strndup(input, input_basename - input);
     real_dirname   = util_expand(
-        state,
         *input_dirname ? input_dirname : ".",
-        UTIL_EXP_TILDE|UTIL_EXP_DOLLAR|UTIL_EXP_SPECIAL
+        UTIL_EXP_TILDE|UTIL_EXP_DOLLAR
     );
 
     dir = g_dir_open(real_dirname, 0, &error);
@@ -612,6 +635,13 @@ gboolean util_filename_fill_completion(State state, GtkListStore *store, const c
  */
 char *util_js_result_as_string(WebKitJavascriptResult *result)
 {
+#if WEBKIT_CHECK_VERSION(2, 22, 0)
+    JSCValue *value;
+
+    value = webkit_javascript_result_get_js_value(result);
+
+    return jsc_value_to_string(value);
+#else
     JSValueRef value;
     JSStringRef string;
     size_t len;
@@ -629,14 +659,23 @@ char *util_js_result_as_string(WebKitJavascriptResult *result)
     JSStringRelease(string);
 
     return retval;
+#endif
 }
 
 double util_js_result_as_number(WebKitJavascriptResult *result)
 {
+#if WEBKIT_CHECK_VERSION(2, 22, 0)
+    JSCValue *value;
+
+    value = webkit_javascript_result_get_js_value(result);
+
+    return jsc_value_to_double(value);
+#else
     JSValueRef value = webkit_javascript_result_get_value(result);
 
     return JSValueToNumber(webkit_javascript_result_get_global_context(result), value,
         NULL);
+#endif
 }
 
 /**
@@ -655,7 +694,7 @@ double util_js_result_as_number(WebKitJavascriptResult *result)
  * @quoteable: String of chars that are additionally escapable by \.
  * Returns TRUE if input started with expandable pattern.
  */
-gboolean util_parse_expansion(State state, const char **input, GString *str,
+gboolean util_parse_expansion(const char **input, GString *str,
         int flags, const char *quoteable)
 {
     GString *name;
@@ -729,12 +768,6 @@ gboolean util_parse_expansion(State state, const char **input, GString *str,
         /* variable are expanded even if they do not exists */
         expanded = TRUE;
         g_string_free(name, TRUE);
-    } else if (flags & UTIL_EXP_SPECIAL && **input == '%') {
-        if (state.uri) {
-            /* TODO check for modifiers like :h:t:r:e */
-            g_string_append(str, state.uri);
-            expanded = TRUE;
-        }
     }
 
     if (!expanded) {
@@ -752,7 +785,6 @@ gboolean util_parse_expansion(State state, const char **input, GString *str,
             } else if (strchr(quoteable, **input)
                 || (flags & UTIL_EXP_TILDE && **input == '~')
                 || (flags & UTIL_EXP_DOLLAR && **input == '$')
-                || (flags & UTIL_EXP_SPECIAL && **input == '%')
             ) {
                 /* escaped char becomes only char */
                 g_string_append_c(str, **input);
@@ -787,9 +819,9 @@ char *util_sanitize_filename(char *filename)
  */
 char *util_sanitize_uri(const char *uri_str)
 {
-    SoupURI *uri;
     char *sanitized_uri;
     char *for_display;
+    GUri *uri;
 
     if (!uri_str) {
         return NULL;
@@ -809,9 +841,9 @@ char *util_sanitize_uri(const char *uri_str)
         return for_display;
     }
 
-    uri           = soup_uri_new(for_display);
-    sanitized_uri = soup_uri_to_string(uri, FALSE);
-    soup_uri_free(uri);
+    uri           = g_uri_parse(for_display, G_URI_FLAGS_NONE, NULL);
+    sanitized_uri = g_uri_to_string_partial(uri, G_URI_HIDE_PASSWORD);
+    g_uri_unref(uri);
     g_free(for_display);
 
     return sanitized_uri;

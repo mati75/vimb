@@ -59,7 +59,9 @@ static int gui_style(Client *c, const char *name, DataType type, void *value, vo
 static int hardware_acceleration_policy(Client *c, const char *name, DataType type, void *value, void *data);
 static int input_autohide(Client *c, const char *name, DataType type, void *value, void *data);
 static int internal(Client *c, const char *name, DataType type, void *value, void *data);
+static int notification(Client *c, const char *name, DataType type, void *value, void *data);
 static int headers(Client *c, const char *name, DataType type, void *value, void *data);
+static int intelligent_tracking_prevention(Client *c, const char *name, DataType type, void *value, void *data);
 static int user_scripts(Client *c, const char *name, DataType type, void *value, void *data);
 static int user_style(Client *c, const char *name, DataType type, void *value, void *data);
 static int statusbar(Client *c, const char *name, DataType type, void *value, void *data);
@@ -98,7 +100,7 @@ void setting_init(Client *c)
     setting_add(c, "header", TYPE_CHAR, &"", headers, FLAG_LIST|FLAG_NODUP, "header");
     i = 1000;
     setting_add(c, "hint-timeout", TYPE_INTEGER, &i, NULL, 0, NULL);
-    setting_add(c, "hint-keys", TYPE_CHAR, &"0123456789", NULL, 0, NULL);
+    setting_add(c, "hint-keys", TYPE_CHAR, &SETTING_HINT_KEYS, NULL, 0, NULL);
     setting_add(c, "hint-follow-last", TYPE_BOOLEAN, &on, NULL, 0, NULL);
     setting_add(c, "hint-keys-same-length", TYPE_BOOLEAN, &off, NULL, 0, NULL);
     setting_add(c, "hint-match-element", TYPE_BOOLEAN, &on, NULL, 0, NULL);
@@ -106,8 +108,14 @@ void setting_init(Client *c)
     setting_add(c, "html5-local-storage", TYPE_BOOLEAN, &on, webkit, 0, "enable-html5-local-storage");
     setting_add(c, "hyperlink-auditing", TYPE_BOOLEAN, &off, webkit, 0, "enable-hyperlink-auditing");
     setting_add(c, "images", TYPE_BOOLEAN, &on, webkit, 0, "auto-load-images");
+#if WEBKIT_CHECK_VERSION(2, 30, 0)
+    setting_add(c, "intelligent-tracking-prevention", TYPE_BOOLEAN, &off, intelligent_tracking_prevention, 0, NULL);
+#endif
     setting_add(c, "javascript-can-access-clipboard", TYPE_BOOLEAN, &off, webkit, 0, "javascript-can-access-clipboard");
     setting_add(c, "javascript-can-open-windows-automatically", TYPE_BOOLEAN, &off, webkit, 0, "javascript-can-open-windows-automatically");
+#if WEBKIT_CHECK_VERSION(2, 24, 0)
+    setting_add(c, "javascript-enable-markup", TYPE_BOOLEAN, &on, webkit, 0, "enable-javascript-markup");
+#endif
     setting_add(c, "media-playback-allows-inline", TYPE_BOOLEAN, &on, webkit, 0, "media-playback-allows-inline");
     setting_add(c, "media-playback-requires-user-gesture", TYPE_BOOLEAN, &off, webkit, 0, "media-playback-requires-user-gesture");
     setting_add(c, "media-stream", TYPE_BOOLEAN, &off, webkit, 0, "enable-media-stream");
@@ -117,6 +125,7 @@ void setting_init(Client *c)
     setting_add(c, "monospace-font", TYPE_CHAR, &"monospace", webkit, 0, "monospace-font-family");
     i = SETTING_DEFAULT_MONOSPACE_FONT_SIZE;
     setting_add(c, "monospace-font-size", TYPE_INTEGER, &i, webkit, 0, "default-monospace-font-size");
+    setting_add(c, "notification", TYPE_CHAR, &"ask", notification, FLAG_NODUP, NULL);
     setting_add(c, "offline-cache", TYPE_BOOLEAN, &on, webkit, 0, "enable-offline-web-application-cache");
     setting_add(c, "plugins", TYPE_BOOLEAN, &on, webkit, 0, "enable-plugins");
     setting_add(c, "prevent-newwindow", TYPE_BOOLEAN, &off, internal, 0, &c->config.prevent_newwindow);
@@ -126,7 +135,7 @@ void setting_init(Client *c)
     setting_add(c, "serif-font", TYPE_CHAR, &"serif", webkit, 0, "serif-font-family");
     setting_add(c, "site-specific-quirks", TYPE_BOOLEAN, &off, webkit, 0, "enable-site-specific-quirks");
     setting_add(c, "smooth-scrolling", TYPE_BOOLEAN, &off, webkit, 0, "enable-smooth-scrolling");
-    setting_add(c, "spacial-navigation", TYPE_BOOLEAN, &off, webkit, 0, "enable-spatial-navigation");
+    setting_add(c, "spatial-navigation", TYPE_BOOLEAN, &off, webkit, 0, "enable-spatial-navigation");
     setting_add(c, "tabs-to-links", TYPE_BOOLEAN, &on, webkit, 0, "enable-tabs-to-links");
     setting_add(c, "webaudio", TYPE_BOOLEAN, &off, webkit, 0, "enable-webaudio");
     setting_add(c, "webgl", TYPE_BOOLEAN, &off, webkit, 0, "enable-webgl");
@@ -136,11 +145,14 @@ void setting_init(Client *c)
     /* internal variables */
     setting_add(c, "stylesheet", TYPE_BOOLEAN, &on, user_style, 0, NULL);
     setting_add(c, "user-scripts", TYPE_BOOLEAN, &on, user_scripts, 0, NULL);
-    setting_add(c, "cookie-accept", TYPE_CHAR, &"always", cookie_accept, 0, NULL);
+    setting_add(c, "cookie-accept", TYPE_CHAR, &SETTING_COOKIE_ACCEPT, cookie_accept, 0, NULL);
     i = 40;
     setting_add(c, "scroll-step", TYPE_INTEGER, &i, internal, 0, &c->config.scrollstep);
+    i = 1;
+    setting_add(c, "scroll-multiplier", TYPE_INTEGER, &i, internal, 0, &c->config.scrollmultiplier);
     setting_add(c, "home-page", TYPE_CHAR, &SETTING_HOME_PAGE, NULL, 0, NULL);
     i = 2000;
+    setting_add(c, "status-bar-show-settings", TYPE_BOOLEAN, &off, internal, 0, &c->config.statusbar_show_settings);
     /* TODO should be global and not overwritten by a new client */
     setting_add(c, "history-max-items", TYPE_INTEGER, &i, internal, 0, &vb.config.history_max);
     setting_add(c, "editor-command", TYPE_CHAR, &"x-terminal-emulator -e -vi '%s'", NULL, 0, NULL);
@@ -148,15 +160,15 @@ void setting_init(Client *c)
     setting_add(c, "status-bar", TYPE_BOOLEAN, &on, statusbar, 0, NULL);
     i = 1000;
     setting_add(c, "timeoutlen", TYPE_INTEGER, &i, internal, 0, &c->map.timeoutlen);
-    setting_add(c, "input-autohide", TYPE_BOOLEAN, &off, input_autohide, 0, &c->config.input_autohide);
+    setting_add(c, "input-autohide", TYPE_BOOLEAN, &on, input_autohide, 0, &c->config.input_autohide);
     setting_add(c, "fullscreen", TYPE_BOOLEAN, &off, fullscreen, 0, NULL);
     setting_add(c, "show-titlebar", TYPE_BOOLEAN, &on, window_decorate, 0, NULL);
     i = 100;
     setting_add(c, "default-zoom", TYPE_INTEGER, &i, default_zoom, 0, NULL);
-    setting_add(c, "download-path", TYPE_CHAR, &"~/", NULL, 0, NULL);
-    setting_add(c, "download-command", TYPE_CHAR, &"/bin/sh -c \"curl -sLJOC - -e '$VIMB_URI' %s\"", NULL, 0, NULL);
+    setting_add(c, "download-path", TYPE_CHAR, &SETTING_DOWNLOAD_PATH, NULL, 0, NULL);
+    setting_add(c, "download-command", TYPE_CHAR, &SETTING_DOWNLOAD_COMMAND, NULL, 0, NULL);
     setting_add(c, "download-use-external", TYPE_BOOLEAN, &off, NULL, 0, NULL);
-    setting_add(c, "incsearch", TYPE_BOOLEAN, &off, internal, 0, &c->config.incsearch);
+    setting_add(c, "incsearch", TYPE_BOOLEAN, &on, internal, 0, &c->config.incsearch);
     i = 10;
     /* TODO should be global and not overwritten by a new client */
     setting_add(c, "closed-max-items", TYPE_INTEGER, &i, internal, 0, &vb.config.closed_max);
@@ -165,14 +177,14 @@ void setting_init(Client *c)
     setting_add(c, "spell-checking-languages", TYPE_CHAR, &"en_US", webkit_spell_checking_language, FLAG_LIST|FLAG_NODUP, NULL);
 
     /* gui style settings vimb */
-    setting_add(c, "completion-css", TYPE_CHAR, &"color:#fff;background-color:#656565;font:" SETTING_GUI_FONT_NORMAL, gui_style, 0, NULL);
-    setting_add(c, "completion-hover-css", TYPE_CHAR, &"background-color:#777;", gui_style, 0, NULL);
-    setting_add(c, "completion-selected-css", TYPE_CHAR, &"color:#f6f3e8;background-color:#888;", gui_style, 0, NULL);
-    setting_add(c, "input-css", TYPE_CHAR, &"background-color:#fff;color:#000;font:" SETTING_GUI_FONT_NORMAL, gui_style, 0, NULL);
-    setting_add(c, "input-error-css", TYPE_CHAR, &"background-color:#f77;font:" SETTING_GUI_FONT_EMPH, gui_style, 0, NULL);
-    setting_add(c, "status-css", TYPE_CHAR, &"color:#fff;background-color:#000;font:" SETTING_GUI_FONT_EMPH, gui_style, 0, NULL);
-    setting_add(c, "status-ssl-css", TYPE_CHAR, &"background-color:#95e454;color:#000;", gui_style, 0, NULL);
-    setting_add(c, "status-ssl-invalid-css", TYPE_CHAR, &"background-color:#f77;color:#000;", gui_style, 0, NULL);
+    setting_add(c, "completion-css", TYPE_CHAR, &SETTING_COMPLETION_CSS, gui_style, 0, NULL);
+    setting_add(c, "completion-hover-css", TYPE_CHAR, &SETTING_COMPLETION_HOVER_CSS, gui_style, 0, NULL);
+    setting_add(c, "completion-selected-css", TYPE_CHAR, &SETTING_COMPLETION_SELECTED_CSS, gui_style, 0, NULL);
+    setting_add(c, "input-css", TYPE_CHAR, &SETTING_INPUT_CSS, gui_style, 0, NULL);
+    setting_add(c, "input-error-css", TYPE_CHAR, &SETTING_INPUT_ERROR_CSS, gui_style, 0, NULL);
+    setting_add(c, "status-css", TYPE_CHAR, &SETTING_STATUS_CSS, gui_style, 0, NULL);
+    setting_add(c, "status-ssl-css", TYPE_CHAR, &SETTING_STATUS_SSL_CSS, gui_style, 0, NULL);
+    setting_add(c, "status-ssl-invalid-css", TYPE_CHAR, &SETTING_STATUS_SSL_INVLID_CSS, gui_style, 0, NULL);
 
     /* initialize the shortcuts and set the default shortcuts */
     shortcut_add(c->config.shortcuts, "dl", "https://duckduckgo.com/html/?q=$0");
@@ -561,6 +573,16 @@ static int geolocation(Client *c, const char *name, DataType type, void *value, 
     return CMD_SUCCESS;
 }
 
+#if WEBKIT_CHECK_VERSION(2, 30, 0)
+static int intelligent_tracking_prevention(Client *c, const char *name, DataType type, void *value, void *data)
+{
+    WebKitWebContext *ctx = webkit_web_view_get_context(c->webview);
+    WebKitWebsiteDataManager *manager = webkit_web_context_get_website_data_manager(ctx);
+    webkit_website_data_manager_set_itp_enabled(manager, *(gboolean*)value);
+    return CMD_SUCCESS;
+}
+#endif
+
 /* This needs to be called before the window is shown for the best chance of
  * success, but it may be called at any time.
  * Currently the setting file is read after the window has been shown, which
@@ -645,6 +667,16 @@ static int internal(Client *c, const char *name, DataType type, void *value, voi
             str = (char**)data;
             OVERWRITE_STRING(*str, (char*)value);
             break;
+    }
+    return CMD_SUCCESS;
+}
+
+static int notification(Client *c, const char *name, DataType type, void *value, void *data)
+{
+    char *policy = (char *)value;
+    if (strcmp("always", policy) != 0 && strcmp("ask", policy) != 0 && strcmp("never", policy) != 0) {
+        vb_echo(c, MSG_ERROR, FALSE, "%s must be in [always, ask, never]", name);
+        return CMD_ERROR | CMD_KEEPINPUT;
     }
     return CMD_SUCCESS;
 }
@@ -741,9 +773,16 @@ static int tls_policy(Client *c, const char *name, DataType type, void *value, v
 {
     gboolean strict = *((gboolean*)value);
 
+#if WEBKIT_CHECK_VERSION(2, 30, 0)
+    WebKitWebContext *ctx = webkit_web_view_get_context(c->webview);
+    WebKitWebsiteDataManager *manager = webkit_web_context_get_website_data_manager(ctx);
+    webkit_website_data_manager_set_tls_errors_policy(manager,
+        strict ? WEBKIT_TLS_ERRORS_POLICY_FAIL : WEBKIT_TLS_ERRORS_POLICY_IGNORE);
+#else
     webkit_web_context_set_tls_errors_policy(
         webkit_web_context_get_default(),
         strict ? WEBKIT_TLS_ERRORS_POLICY_FAIL : WEBKIT_TLS_ERRORS_POLICY_IGNORE);
+#endif
 
     return CMD_SUCCESS;
 }

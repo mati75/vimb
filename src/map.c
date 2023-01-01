@@ -69,6 +69,8 @@ static struct {
     {0,                 GDK_F10,       'k', ';'},
     {0,                 GDK_F11,       'F', '1'},
     {0,                 GDK_F12,       'F', '2'},
+    {0,                 GDK_Prior,     'k', 'P'}, /* page up */
+    {0,                 GDK_Next,      'k', 'N'}, /* page down   */
 };
 
 static struct {
@@ -77,28 +79,30 @@ static struct {
     char *ch;
     int  chlen;
 } key_labels[] = {
-    {"<CR>",    4, "\x0d",       1},
-    {"<Tab>",   5, "\t",         1},
-    {"<S-Tab>", 7, CSI_STR "kB", 3},
-    {"<Esc>",   5, "\x1b",       1},
-    {"<Space>", 7, "\x20",       1},
-    {"<BS>",    4, "\x08",       1},
-    {"<Up>",    4, CSI_STR "ku", 3},
-    {"<Down>",  6, CSI_STR "kd", 3},
-    {"<Left>",  6, CSI_STR "kl", 3},
-    {"<Right>", 7, CSI_STR "kr", 3},
-    {"<F1>",    4, CSI_STR "k1", 3},
-    {"<F2>",    4, CSI_STR "k2", 3},
-    {"<F3>",    4, CSI_STR "k3", 3},
-    {"<F4>",    4, CSI_STR "k4", 3},
-    {"<F5>",    4, CSI_STR "k5", 3},
-    {"<F6>",    4, CSI_STR "k6", 3},
-    {"<F7>",    4, CSI_STR "k7", 3},
-    {"<F8>",    4, CSI_STR "k8", 3},
-    {"<F9>",    4, CSI_STR "k9", 3},
-    {"<F10>",   5, CSI_STR "k;", 3},
-    {"<F11>",   5, CSI_STR "F1", 3},
-    {"<F12>",   5, CSI_STR "F2", 3},
+    {"<CR>",            4, "\x0d",       1},
+    {"<Tab>",           5, "\t",         1},
+    {"<S-Tab>",         7, CSI_STR "kB", 3},
+    {"<Esc>",           5, "\x1b",       1},
+    {"<Space>",         7, "\x20",       1},
+    {"<BS>",            4, "\x08",       1},
+    {"<Up>",            4, CSI_STR "ku", 3},
+    {"<Down>",          6, CSI_STR "kd", 3},
+    {"<Left>",          6, CSI_STR "kl", 3},
+    {"<Right>",         7, CSI_STR "kr", 3},
+    {"<F1>",            4, CSI_STR "k1", 3},
+    {"<F2>",            4, CSI_STR "k2", 3},
+    {"<F3>",            4, CSI_STR "k3", 3},
+    {"<F4>",            4, CSI_STR "k4", 3},
+    {"<F5>",            4, CSI_STR "k5", 3},
+    {"<F6>",            4, CSI_STR "k6", 3},
+    {"<F7>",            4, CSI_STR "k7", 3},
+    {"<F8>",            4, CSI_STR "k8", 3},
+    {"<F9>",            4, CSI_STR "k9", 3},
+    {"<F10>",           5, CSI_STR "k;", 3},
+    {"<F11>",           5, CSI_STR "F1", 3},
+    {"<F12>",           5, CSI_STR "F2", 3},
+    {"<PageUp>",        8, CSI_STR "kP", 3},
+    {"<PageDown>",      10,CSI_STR "kN", 3},
 };
 
 /* this is only to queue GDK key events, in order to later send them if the map didn't match */
@@ -170,7 +174,7 @@ MapState map_handle_keys(Client *c, const guchar *keys, int keylen, gboolean use
                 c->map.resolved -= 3;
                 c->map.qlen     -= 3;
                 /* move all other queue entries three steps to the left */
-                memmove(c->map.queue->str, c->map.queue->str + 3, c->map.qlen);
+                g_string_erase(c->map.queue, 0, 3);
             } else {
                 /* get first char of queue */
                 qk = c->map.queue->str[0];
@@ -179,7 +183,7 @@ MapState map_handle_keys(Client *c, const guchar *keys, int keylen, gboolean use
                 c->map.qlen--;
 
                 /* move all other queue entries one step to the left */
-                memmove(c->map.queue->str, c->map.queue->str + 1, c->map.qlen);
+                g_string_erase(c->map.queue, 0, 1);
             }
 
             /* remove the no-map flag */
@@ -382,7 +386,7 @@ gboolean on_map_keypress(GtkWidget *widget, GdkEventKey* event, Client *c)
     MapState res = map_handle_keys(c, string, len, true);
 
     if (res != MAP_AMBIGUOUS) {
-        if (!c->state.processed_key) {
+        if (c->state.typed && !c->state.processed_key) {
             /* events ready to be consumed */
             process_events();
         } else {

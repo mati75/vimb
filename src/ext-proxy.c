@@ -180,7 +180,7 @@ static void on_vertical_scroll(GDBusConnection *connection,
         const char *interface_name, const char *signal_name,
         GVariant *parameters, gpointer data)
 {
-    glong max, top;
+    guint64 max, top;
     guint percent;
     guint64 pageid;
     Client *c;
@@ -235,6 +235,31 @@ void ext_proxy_lock_input(Client *c, const char *element_id)
 void ext_proxy_unlock_input(Client *c, const char *element_id)
 {
     dbus_call(c, "UnlockInput", g_variant_new("(ts)", c->page_id, element_id), NULL);
+}
+
+/**
+ * Returns the current selection if there is one as newly allocates string.
+ *
+ * Result must be freed by caller with g_free.
+ */
+char *ext_proxy_get_current_selection(Client *c)
+{
+    char *selection, *js;
+    gboolean success;
+    GVariant *jsreturn;
+
+    js       = g_strdup_printf("getSelection().toString();");
+    jsreturn = ext_proxy_eval_script_sync(c, js);
+    g_variant_get(jsreturn, "(bs)", &success, &selection);
+    g_free(js);
+
+    if (!success) {
+        g_warning("can not get current selection: %s", selection);
+        g_free(selection);
+        return NULL;
+    }
+
+    return selection;
 }
 
 /**
