@@ -95,6 +95,10 @@ Start Command Mode and print `:' to the input box.
 Set cursor to the first editable element in the page and switch to Input
 Mode.
 .TP
+.B i
+Set cursor to the last focused element in the page and switch to Input Mode.
+If no element was focused before the first element is focused like with `gi'.
+.TP
 .B CTRL\-Z
 Switch Vimb into Pass-Through Mode.
 .TP
@@ -167,6 +171,13 @@ Reload the website without using caches.
 .TP
 .B CTRL\-C
 Stop loading the current page.
+.TP
+.B CTRL-LeftMouse, MiddleMouse
+Opens the clicket link into new window.
+.TP
+.B Shift-LeftMouse
+Push the link url under the cursor to the end of the Read It Later queue like
+the `:qpush' command.
 .
 .SS Motion
 .TP
@@ -301,6 +312,9 @@ Open hinted image in the current window.
 .TP
 .B ;I
 Open hinted image in a new window.
+.TP
+.B ;k
+Kill (remove) hinted element from the page.
 .TP
 .B ;p
 Push the hint's URI to the end of the Read It Later queue like the `:qpush'
@@ -949,15 +963,21 @@ The following environment variables are set for called shell commands.
 This variable is set by Vimb everytime a new page is opened to the URI of the
 page.
 .TP
+.B VIMB_SELECTION
+This variable is set to the current selected text on the page.
+.TP
 .B VIMB_TITLE
 Contains the title of the current opened page.
 .TP
 .B VIMB_PID
 Contains the pid of the running Vimb instance.
 .TP
+.B VIMB_WIN_ID
+Holds the X-Window id of the Vimb window.
+.TP
 .B VIMB_XID
 Holds the X-Window id of the Vimb window or of the embedding window if Vimb is
-started with the -e option.
+compiled with XEMBED and started with the -e option.
 .EE
 .RE
 .TP
@@ -1344,12 +1364,21 @@ CSS style applied to the inputbox in normal state.
 .B input-error-css (string)
 CSS style applied to the inputbox in case of displayed error.
 .TP
+.B intelligent-tracking-prevention (bool)
+Whether WebKit's Intelligent Tracking Prevention (ITP) is enabled.
+.TP
 .B javascript-can-access-clipboard (bool)
 Whether JavaScript can access the clipboard.
 .TP
 .B javascript-can-open-windows-automatically (bool)
 Whether JavaScript can open popup windows automatically without user
 interaction.
+.PD
+.RE
+.TP
+.B javascript-enable-markup (bool)
+Whether JavaScript markup is enabled.
+Disabling can help with some older systems (ppc, ppc64, etc.) that don't have complete JavaScript support to run webpages without crashing.
 .TP
 .B geolocation (string)
 Controls website access to the geolocation API {`always', `never', `ask' (display a prompt each time)}
@@ -1384,6 +1413,10 @@ The font family used as the default for content using monospace font.
 .B monospace-font-size (int)
 Default font size for the monospace font.
 .TP
+.B notification (string)
+Controls website access to the notification API, that sends notifications via
+dbus. {`always', `never', `ask' (display a prompt each time)}
+.TP
 .B offline-cache (bool)
 Whether to enable HTML5 offline web application cache support.
 Offline web application cache allows web applications to run even
@@ -1409,6 +1442,10 @@ Determines whether or not JavaScript executes within a page.
 .B scroll-step (int)
 Number of pixel vimb scrolls if 'j' or 'k' is used.
 .TP
+.B scroll-multiplier (int)
+Multiplier to increase the scroll distance if window is scrolled by mouse
+wheel.
+.TP
 .B serif-font (string)
 The font family used as the default for content using serif font.
 .TP
@@ -1423,7 +1460,7 @@ Enables the site-specific compatibility workarounds.
 .B smooth-scrolling (bool)
 Enable or disable support for smooth scrolling.
 .TP
-.B spacial-navigation (bool)
+.B spatial-navigation (bool)
 Whether to enable the Spatial Navigation.
 This feature consists in the ability to navigate between focusable
 elements in a Web page, such as hyperlinks and form controls, by using
@@ -1446,6 +1483,13 @@ Brazil.
 .TP
 .B status-bar (bool)
 Indicates if the status bar should be shown.
+.PD
+.RE
+.TP
+.B status-bar-show-settings (bool)
+Whether to show settings on the status bar.
+This shows on the right hand of the status bar some runtime settings that
+where specified on compile time.
 .TP
 .B status-css (string)
 CSS style applied to the status bar on none https pages.
@@ -1524,6 +1568,24 @@ this subdirectory.
 .I config
 Configuration file to set WebKit setting, some GUI styles and keybindings.
 .TP
+.I scripts.js
+This file can be used to run user scripts, that are injected into every page
+that is opened.
+.TP
+.I style.css
+File for userdefined CSS styles.
+These file is used if the config variable `stylesheet' is enabled.
+.PD
+.RE
+.
+.TP
+.IR $XDG_DATA_HOME/vimb[/PROFILE]
+Directory for runtime data.
+If executed with \fB-p \fIPROFILE\fR parameter, data files are written from
+this subdirectory.
+.
+.RS
+.PD 0
 .I cookies.db
 Sqlite cookie storage.
 This file will not be touched if option \-\-incognito is set.
@@ -1550,20 +1612,8 @@ Holds the read it later queue filled by `qpush'.
 .I search
 This file holds the history of search queries.
 This file will not be touched if option \-\-incognito is set.
-.TP
-.I scripts.js
-This file can be used to run user scripts, that are injected into every page
-that is opened.
-.TP
-.I style.css
-File for userdefined CSS styles.
-These file is used if the config variable `stylesheet' is enabled.
 .PD
 .RE
-.TP
-There are also some sample scripts installed together with Vimb under
-PREFIX/share/vimb/examples.
-.
 .
 .SH ENVIRONMENT
 .TP

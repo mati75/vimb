@@ -21,14 +21,16 @@
 #define _MAIN_H
 
 #include <fcntl.h>
+#include "config.h"
+#ifndef FEATURE_NO_XEMBED
 #include <gtk/gtkx.h>
+#endif
 #include <stdio.h>
 #include <webkit2/webkit2.h>
 #include "shortcut.h"
 #include "handler.h"
 #include "file-storage.h"
 
-#include "config.h"
 
 #define LENGTH(x) (sizeof x / sizeof x[0])
 #define OVERWRITE_STRING(t, s) {if (t) g_free(t); t = g_strdup(s);}
@@ -167,13 +169,13 @@ struct State {
 
 #define PROMPT_SIZE 4
     char                prompt[PROMPT_SIZE];/* current prompt ':', 'g;t', '/' including nul */
-    glong               marks[MARK_SIZE];   /* holds marks set to page with 'm{markchar}' */
+    guint64             marks[MARK_SIZE];   /* holds marks set to page with 'm{markchar}' */
     guint               input_timer;
     MessageType         input_type;
     StatusType          status_type;
-    glong               scroll_max;         /* Maxmimum scrollable height of the document. */
+    guint64             scroll_max;         /* Maxmimum scrollable height of the document. */
     guint               scroll_percent;     /* Current position of the viewport in document (percent). */
-    glong               scroll_top;         /* Current position of the viewport in document (pixel). */
+    guint64             scroll_top;         /* Current position of the viewport in document (pixel). */
     char                *title;             /* Window title of the client. */
 
     char                *reg[REG_SIZE];     /* holds the yank buffers */
@@ -246,11 +248,13 @@ struct Client {
          * client base. */
         GHashTable              *settings;
         guint                   scrollstep;
+        guint                   scrollmultiplier;
         gboolean                input_autohide;
         gboolean                incsearch;
         gboolean                prevent_newwindow;
         guint                   default_zoom;   /* default zoom level in percent */
         Shortcut                *shortcuts;
+        gboolean                statusbar_show_settings;
     } config;
     struct {
         GSList      *list;
@@ -271,7 +275,9 @@ struct Client {
 struct Vimb {
     char        *argv0;
     Client      *clients;
+#ifndef FEATURE_NO_XEMBED
     Window      embed;
+#endif
     GHashTable  *modes;             /* all available browser main modes */
     char        *configfile;        /* config file given as option on startup */
     char        *files[FILES_LAST];
@@ -285,6 +291,8 @@ struct Vimb {
     GtkCssProvider *style_provider;
     gboolean    no_maximize;
     gboolean    incognito;
+
+    WebKitWebContext *webcontext;
 };
 
 gboolean vb_download_set_destination(Client *c, WebKitDownload *download,

@@ -168,16 +168,19 @@ var hints = Object.freeze((function(){
                     continue;
                 }
 
-                count++;
-
-                /* create the hint label with number/letters */
                 rect  = e.getClientRects()[0];
+                if (!rect) {
+                    continue;
+                }
+
+                count++;
                 label = labelTmpl.cloneNode(false);
 
                 label.style.display = "none";
                 label.style.left    = Math.max(rect.left - 4, 0) + "px";
                 label.style.top     = Math.max(rect.top - 4, 0) + "px";
 
+                /* create the hint label with number/letters */
                 /* if hinted element is an image - show title or alt of the image in hint label */
                 /* this allows to see how to filter for the image */
                 text = "";
@@ -226,7 +229,7 @@ var hints = Object.freeze((function(){
             hDiv.style.position = "fixed";
             hDiv.style.top      = "0";
             hDiv.style.left     = "0";
-            hDiv.style.zIndex   = "225000";
+            hDiv.style.zIndex   = "2147483647";
             hDiv.appendChild(fragment);
             if (doc.body) {
                 doc.body.appendChild(hDiv);
@@ -524,13 +527,15 @@ var hints = Object.freeze((function(){
             var prop,
                 /* holds the xpaths for the different modes */
                 xpathmap = {
-                    otY:     "//*[@href] | //*[@onclick or @tabindex or @class='lk' or @role='link' or @role='button'] | //input[not(@type='hidden' or @disabled or @readonly)] | //textarea[not(@disabled or @readonly)] | //button | //select",
+                    otY:     "//*[@href] | //*[@onclick or @tabindex or @class='lk' or @role='link' or @role='button'] | //input[not(@type='hidden' or @disabled or @readonly)] | //textarea[not(@disabled or @readonly)] | //button | //select | //summary",
+                    k:       "//div",
                     e:       "//input[not(@type) or @type='text'] | //textarea",
                     iI:      "//img[@src]",
                     OpPsTxy: "//*[@href] | //img[@src and not(ancestor::a)] | //iframe[@src]"
                 },
                 /* holds the actions to perform on hint fire */
                 actionmap = {
+                    k:          function(e) {e.remove(); return "DONE:";},
                     ot:         function(e) {open(e); return "DONE:";},
                     eiIOpPsTxy: function(e) {return "DATA:" + getSrc(e);},
                     Y:          function(e) {return "DATA:" + (e.textContent || "");}

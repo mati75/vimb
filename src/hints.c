@@ -234,10 +234,10 @@ gboolean hints_parse_prompt(const char *prompt, char *mode, gboolean *is_gmode)
     gboolean res;
     char pmode = '\0';
 #ifdef FEATURE_QUEUE
-    static char *modes   = "eiIoOpPstTxyY";
+    static char *modes   = "eiIkoOpPstTxyY";
     static char *g_modes = "IopPstyY";
 #else
-    static char *modes   = "eiIoOstTxyY";
+    static char *modes   = "eiIkoOstTxyY";
     static char *g_modes = "IostyY";
 #endif
 
@@ -328,8 +328,6 @@ static gboolean hint_function_check_result(Client *c, GVariant *return_value)
             } else {
                 vb_statusbar_show_hover_url(c, LINK_TYPE_LINK, value + 7);
             }
-        } else {
-            goto error;
         }
     } else if (!strncmp(value, "DONE:", 5)) {
         fire_timeout(c, FALSE);

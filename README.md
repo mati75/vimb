@@ -1,6 +1,6 @@
 # Vimb - the Vim-like browser
 
-[![Build Status](https://api.travis-ci.com/fanglingsu/vimb.svg?branch=master)](https://travis-ci.com/fanglingsu/vimb)
+[![Build Status](https://travis-ci.com/fanglingsu/vimb.svg?branch=master)](https://travis-ci.com/fanglingsu/vimb)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Latest Release](https://img.shields.io/github/release/fanglingsu/vimb.svg?style=flat)](https://github.com/fanglingsu/vimb/releases/latest)
 
@@ -29,8 +29,8 @@ the project page of [Vimb][].
 
 ## Packages
 
-- Arch Linux: [aur/vimb][], [aur/vimb-git][]
-- Gentoo: [gentoo-git][], [gentoo][]
+- Arch Linux: [community/vimb][], [aur/vimb-git][], [aur/vimb-gtk2][]
+- Gentoo: [tharvik overlay][], [jjakob overlay][]
 - openSUSE: [network/vimb][]
 - pkgsrc: [pkgsrc/www/vimb][], [pkgsrc/wip/vimb-git][]
 - Slackware: [slackbuild/vimb][]
@@ -38,13 +38,17 @@ the project page of [Vimb][].
 ## dependencies
 
 - gtk+-3.0
-- webkit2gtk-4.0 >= 2.20.x
+- webkit2gtk-4.1
+- gst-libav, gst-plugins-good (optional, for media decoding among other things)
 
 ## Install
 
-Edit `config.mk` to match your local setup.
+Edit `config.mk` to match your local setup. You might need to do this if 
+you use another compiler, like tcc. Most people, however, will almost never 
+need to do this on systems like Ubuntu or Debian.
 
-Edit `src/config.h` to match your personal preferences.
+Edit `src/config.h` to match your personal preferences, like changing the
+characters used in the loading bar, or the font.
 
 The default `Makefile` will not overwrite your customised `config.h` with the
 contents of `config.def.h`, even if it was updated in the latest git pull.
@@ -85,9 +89,10 @@ Information about the license are found in the file LICENSE.
 - https://blog.jeaye.com/2015/08/23/vimb/
 
 [aur/vimb-git]:        https://aur.archlinux.org/packages/vimb-git
-[aur/vimb]:            https://aur.archlinux.org/packages/vimb
-[gentoo-git]:          https://github.com/tharvik/overlay/tree/master/www-client/vimb
-[gentoo]:              https://github.com/hsoft/portage-overlay/tree/master/www-client/vimb
+[aur/vimb-gtk2]:       https://aur.archlinux.org/packages/vimb-gtk2/
+[community/vimb]:      https://www.archlinux.org/packages/community/x86_64/vimb/
+[tharvik overlay]:     https://github.com/tharvik/overlay/tree/master/www-client/vimb
+[jjakob overlay]:      https://github.com/jjakob/gentoo-overlay/tree/master/www-client/vimb
 [mail-archive]:        https://sourceforge.net/p/vimb/vimb/vimb-users/ "vimb - mailing list archive"
 [mail]:                https://lists.sourceforge.net/lists/listinfo/vimb-users "vimb - mailing list"
 [network/vimb]:        https://build.opensuse.org/package/show/network/vimb
