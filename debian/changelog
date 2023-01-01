@@ -1,3 +1,10 @@
+vimb (3.6.0+git20221221-1) unstable; urgency=medium
+
+  * Merge latest git tree
+  * Make lintian happy.
+
+ -- Mateusz Łukasik <mati75@linuxmint.pl>  Sun, 01 Jan 2023 16:07:30 +0100
+
 vimb (3.6.0-1) unstable; urgency=medium
 
   * New upstream release.
