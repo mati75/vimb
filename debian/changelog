@@ -1,3 +1,9 @@
+vimb (3.7.0-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Mateusz Łukasik <mati75@linuxmint.pl>  Wed, 21 Jun 2023 22:57:14 +0200
+
 vimb (3.6.0+git20221221-1) unstable; urgency=medium
 
   * Merge latest git tree
