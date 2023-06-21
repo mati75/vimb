@@ -6,13 +6,40 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [3.6.0] - 2023-06-19
 ### Added
 * The new env variable `$VIMB_SELECTION` is set to the current selected text
   whenever a `shellcmd` is run #592.
 * Allow to push link url to queue by `<S-LeftMouse>` #610.
 * Allow to decide if html5 notfication are allowed #651. New setting
-  'notification=[ask,always,never]' added.
+  `notification=[ask,always,never]` added.
 * Add new env `VIMB_WIN_ID` var for `:shellcmd` which holds the own window id.
+* Focus last focused input elemnt on page via `i` - or first found element if
+  none was focused before.
+* Completion with bookmarked urls for `:qpush` and `qunshift`.
+* Setting `scroll-multiplier` to allow for faster scrolling by mouse wheel.
+* Setting `intelligent-tracking-prevention` to enable WebKit's Intelligent
+  Tracking Prevention (ITP).
+* Setting `javascript-enable-markup` to disable js markup instead of disabling
+* Setting `status-bar-show-settings` to enable showing indicators to currently
+  applied setting. Can be configured via config.h file.
+  ```
+  #define COOKIE GET_CHAR(c, "cookie-accept")
+  #define STATUS_VARAIBLE_SHOW "%c%c%c%c%c%c%c%c", \
+    CHAR_MAP(COOKIE, "always", 'A', CHAR_MAP(COOKIE, "origin", '@', 'a')), \
+    GET_BOOL(c, "dark-mode") ? 'D' : 'd', \
+    vb.incognito ? 'E' : 'e', \
+    GET_BOOL(c, "images") ? 'I' : 'i', \
+    GET_BOOL(c, "html5-local-storage") ? 'L' : 'l', \
+    GET_BOOL(c, "stylesheet") ? 'M' : 'm', \
+    GET_BOOL(c, "scripts") ? 'S' : 's', \
+    GET_BOOL(c, "strict-ssl") ? 'T' : 't'
+  ```
+  JavaScript in general.
+* Allow to push link url to queue by `Shift-LeftMouse`.
+* New hint mode `;k` do remove hinted elements like advertisement from DOM.
+* Allow to map `<PageUp>` and `<Pagedown>` keys.
 ### Changed
 * Modes some files from `$XDG_CONFIG_HOME/vimb` into `$XDG_DATA_HOME/vimb` #582.
   Following files are affected `bookmark`, `closed`, `command`, `config`,
@@ -27,12 +54,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   mv $XDG_CONFIG_HOME/vimb/<ProfileName>/{bookmark,closed,command,cookies.db,history,queue,search} \
       $XDG_DATA_HOME/vimb/<ProfileName>
   ```
+* Dependency moved to webkit-gtk 4.1 and libsoup 3.0
 ### Fixed
 * Fixed ignored last line in config file if this line did not end in newline.
 * Fixed crash in normal_focus_last_active (Thanks to Maxime Coste)
 * Fixed hint keys going to webview if the hinted element had no src-attribut
   (thanks to Maxime Coste)
 * Fixed erro in hinting on gitlab which caused the hints to have ho labels #659.
+* Prevent possible use after free in autocmd processing.
 ### Removed
 * Expansion of `%` to the current opened URI for `:shellcmd` was removed
   because it breaks the `x-hint-command` with URIs containing '%'. But it is
@@ -305,7 +334,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   cookie file
 * Fixed none POSIX `echo -n` call
 
-[Unreleased]: https://github.com/fanglingsu/vimb/compare/3.6.0...master
+[Unreleased]: https://github.com/fanglingsu/vimb/compare/3.7.0...master
+[3.z.0]: https://github.com/fanglingsu/vimb/compare/3.6.0...3.7.0
 [3.6.0]: https://github.com/fanglingsu/vimb/compare/3.5.0...3.6.0
 [3.5.0]: https://github.com/fanglingsu/vimb/compare/3.4.0...3.5.0
 [3.4.0]: https://github.com/fanglingsu/vimb/compare/3.3.0...3.4.0
