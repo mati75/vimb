@@ -1,0 +1,7 @@
+# https://wiki.debian.org/UpstreamMetadata
+Bug-Database: https://github.com/fanglingsu/vimb/issues
+Changelog: https://github.com/fanglingsu/vimb/blob/master/CHANGELOG.md
+Documentation: https://fanglingsu.github.io/vimb/howto.html
+Repository: https://github.com/fanglingsu/vimb.git
+Repository-Browse: https://github.com/fanglingsu/vimb
+Security-Contact: danielcarl@gmx.de

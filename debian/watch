@@ -1,5 +1,5 @@
 version=4
 opts="searchmode=plain,\
-filenamemangle=s%v?@ANY_VERSION@%@PACKAGE@-$1.tar.xz%" \
+filenamemangle=s%v?@ANY_VERSION@%@PACKAGE@-$1.tar.gz%" \
 https://api.github.com/repos/fanglingsu/vimb/releases?per_page=50 \
 https://api.github.com/repos/[^/]+/[^/]+/tarball/v?@ANY_VERSION@
