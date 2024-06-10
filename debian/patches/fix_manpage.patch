@@ -1,0 +1,34 @@
+Description: Fix warnings acute-accent-in-manual-page and typo every time
+Author: Mateusz Łukasik <mati75@linuxmint.pl>
+Origin: Debian
+Forwarded: https://github.com/fanglingsu/vimb/issues/764
+
+--- a/doc/vimb.1
++++ b/doc/vimb.1
+@@ -546,7 +546,7 @@ of key presses by another.
+ .P
+ Note that the \fIlhs\fP ends with the first found space.
+ If you want to use space also in the {lhs} you have to escape this
+-with a single `\\', as shown in the examples.
++with a single '\e', as shown in the examples.
+ .sp
+ The \fIrhs\fP starts with the first non-space char. If you want a \fIrhs\fP
+ that starts with a space, you have to use "<Space>".
+@@ -804,7 +804,7 @@ This includes also '/' in contrast to sh
+ Matches any single character except of '/'.
+ .IP "\fB{one,two}\fP"
+ Matches 'one' or 'two'.
+-Any '{', ',' and '}' within this pattern must be escaped by a '\\'.
++Any '{', ',' and '}' within this pattern must be escaped by a '\e'.
+ \&'*' and '?' have no special meaning within the curly braces.
+ .IP "\fB\e\fP"
+ Use backslash to escape the special meaning of '?*{},' in the pattern or
+@@ -967,7 +967,7 @@ A '\e' before these patterns disables th
+ The following environment variables are set for called shell commands.
+ .TP
+ .B VIMB_URI
+-This variable is set by Vimb everytime a new page is opened to the URI of the
++This variable is set by Vimb every time a new page is opened to the URI of the
+ page.
+ .TP
+ .B VIMB_SELECTION

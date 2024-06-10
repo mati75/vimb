@@ -1,0 +1,19 @@
+From e4420410937f3fbeb916e04ce6ebb18e92fab10d Mon Sep 17 00:00:00 2001
+From: Daniel Carl <danielcarl@gmx.de>
+Date: Tue, 20 Jun 2023 23:38:46 +0200
+Subject: [PATCH] Update version in Makefile
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index d074f54e..8750d34f 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,4 +1,4 @@
+-version = 3.6.0
++version = 3.7.0
+ include config.mk
+ 
+ all: version.h src.subdir-all
