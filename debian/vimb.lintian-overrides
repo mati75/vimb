@@ -1,0 +1,2 @@
+# The .desktop file Name and GenericName entries already contain all possible words that could be placed in the Keywords field.
+vimb: desktop-entry-lacks-keywords-entry [usr/share/applications/vimb.desktop]
