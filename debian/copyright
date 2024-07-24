@@ -4,11 +4,11 @@ Source: https://github.com/fanglingsu/vimb/releases
 Upstream-Contact: https://github.com/fanglingsu/vimb/issues
 
 Files: *
-Copyright: 2012-2023 Daniel Carl <danielcarl@gmx.de>
+Copyright: 2012-2024 Daniel Carl <danielcarl@gmx.de>
 License: GPL-3+
 
 Files: vimb.metainfo.xml
-Copyright: 2012-2023 Daniel Carl <danielcarl@gmx.de>
+Copyright: 2012-2024 Daniel Carl <danielcarl@gmx.de>
 License: CC0-1.0
   CC0 1.0 Universal
   .

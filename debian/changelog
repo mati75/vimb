@@ -1,5 +1,5 @@
-vimb (3.7.0-1) unstable; urgency=medium
+vimb (3.7.0+git20240706-1) unstable; urgency=medium
 
   * Initial release to Debian. (Closes: #982010)
 
- -- Mateusz Łukasik <mati75@linuxmint.pl>  Mon, 10 Jun 2024 23:53:19 +0200
+ -- Mateusz Łukasik <mati75@linuxmint.pl>  Wed, 24 Jul 2024 18:54:15 +0200
