@@ -546,7 +546,7 @@ of key presses by another.
 .P
 Note that the \fIlhs\fP ends with the first found space.
 If you want to use space also in the {lhs} you have to escape this
-with a single `\\', as shown in the examples.
+with a single '\e', as shown in the examples.
 .sp
 The \fIrhs\fP starts with the first non-space char. If you want a \fIrhs\fP
 that starts with a space, you have to use "<Space>".
@@ -572,6 +572,9 @@ number of keys have no visual representation, a special notation is required.
 As special key names have the format \fI<...>\fP.
 The following special keys can be used: <Left>, <Up>, <Right>, <Down>
 for the cursor keys, <Tab>, <Esc>, <CR>, <Space>, <BS>, <F1>-<F12> and <C-A>-<C-Z>.
+If you want an actual sequence of keys like "<", "C", "R", ">" then
+escape with a backslash: "\<CR>". If you want a backslash followed by a special
+key then use <Bslash>.
 .TP
 .PD 0
 .BI ":nm[ap] {" lhs "} {" rhs }
@@ -804,7 +807,7 @@ This includes also '/' in contrast to shell patterns.
 Matches any single character except of '/'.
 .IP "\fB{one,two}\fP"
 Matches 'one' or 'two'.
-Any '{', ',' and '}' within this pattern must be escaped by a '\\'.
+Any '{', ',' and '}' within this pattern must be escaped by a '\e'.
 \&'*' and '?' have no special meaning within the curly braces.
 .IP "\fB\e\fP"
 Use backslash to escape the special meaning of '?*{},' in the pattern or
@@ -826,7 +829,7 @@ autocommands are executed in the order in which they were given.
 .BI ":au[tocmd]! [" group "] {" event "} {" pat "} {" cmd "}"
 Remove all autocommands associated with \fIevent\fP and which pattern match
 \fIpat\fP, and add the command \fIcmd\fP.
-Note that the pattern is not matches literally to find autocommands
+Note that the pattern is not matched literally to find autocommands
 to remove, like Vim does.
 Vimb matches the autocommand pattern with \fIpat\fP.
 If [\fIgroup\fP] is not given, deletes autocommands in current group,
@@ -967,7 +970,7 @@ A '\e' before these patterns disables the expansion.
 The following environment variables are set for called shell commands.
 .TP
 .B VIMB_URI
-This variable is set by Vimb everytime a new page is opened to the URI of the
+This variable is set by Vimb every time a new page is opened to the URI of the
 page.
 .TP
 .B VIMB_SELECTION
@@ -1554,6 +1557,9 @@ it might change the behaviour by adding or changing mappings.
 .IP ":set x-hint-command=:sh! curl -e <C-R>% <C-R>;"
 This fills the inputbox with the prefilled download command and replaces
 `<C-R>%' with the current URI and `<C-R>;' with the URI of the hinted element.
+.IP ":nnoremap ;f :set x-hint-command=:sh! firefox '\<C-R>;\<CR><CR>;x"
+This makes the key sequence ";f" start hinting and then open the hinted URI in
+firefox.
 .PD
 .RE
 .TP
@@ -1573,7 +1579,7 @@ this subdirectory.
 .PD 0
 .TP
 .I config
-Configuration file to set WebKit setting, some GUI styles and keybindings.
+Ex commands from this file are executed on startup.
 .TP
 .I scripts.js
 This file can be used to run user scripts, that are injected into every page

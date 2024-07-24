@@ -211,8 +211,6 @@ gboolean autocmd_add(Client *c, char *name, gboolean delete)
             if (!util_wildmatch(pattern, cmd->pattern)) {
                 continue;
             }
-            /* remove the bits from the item */
-            cmd->bits &= ~bits;
 
             /* if the command has no matching events - remove it */
             grp->cmds = g_slist_delete_link(grp->cmds, lc);
@@ -225,8 +223,6 @@ gboolean autocmd_add(Client *c, char *name, gboolean delete)
         if (removed) {
             rebuild_used_bits(c);
         }
-
-        return true;
     }
 
     /* add the new autocmd */
@@ -249,9 +245,9 @@ gboolean autocmd_add(Client *c, char *name, gboolean delete)
  */
 gboolean autocmd_run(Client *c, AuEvent event, const char *uri, const char *group)
 {
-    GSList  *lg, *lc;
+    GSList  *lg, *lc, *lcc;
     AuGroup *grp;
-    AutoCmd *cmd;
+    AutoCmd *cmd, *new;
     guint bits = events[event].bits;
 
     /* if there is no autocmd for this event - skip here */
@@ -266,8 +262,19 @@ gboolean autocmd_run(Client *c, AuEvent event, const char *uri, const char *grou
         if (group && strcmp(group, grp->name)) {
             continue;
         }
-        /* test each command in group */
+
+        /* make a deep copy of grp->cmds since it can be modified by ex_run_string() below */
+        lcc = NULL;
         for (lc = grp->cmds; lc; lc = lc->next) {
+            cmd = lc->data;
+            new = new_autocmd(cmd->excmd, cmd->pattern);
+            new->bits = cmd->bits;
+            lcc = g_slist_prepend(lcc, new); // use prepend+reverse instead of append for efficiency
+        }
+        lcc = g_slist_reverse(lcc);
+
+        /* test each command in group */
+        for (lc = lcc; lc; lc = lc->next, free_autocmd(cmd)) {
             cmd = lc->data;
             /* skip if this dos not match the event bits */
             if (!(bits & cmd->bits)) {
@@ -283,6 +290,8 @@ gboolean autocmd_run(Client *c, AuEvent event, const char *uri, const char *grou
             /* run command and make sure it's not writte to command history */
             ex_run_string(c, cmd->excmd, false);
         }
+
+        g_slist_free(lcc);
     }
 
     return true;
